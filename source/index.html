@@ -7,9 +7,9 @@
 <title>S-Tec Performance Management System · 에스텍 성과 관리 시스템</title>
 <meta name="description" content="에스텍 성과 관리 시스템 — 보안·미화·시설·주차 등 업종·산업별 현장 업무를 일일·주간·월간·연간 성과로 계수화하고, 운영실태·품질점검 결과까지 보고서(엑셀·Word·PPT·PDF)로 만듭니다.">
 <meta name="theme-color" content="#0C2350">
-<link rel="manifest" href="manifest.webmanifest?v=1.0.1">
-<link rel="icon" href="icons/favicon-48.png?v=1.0.1">
-<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.0.1">
+<link rel="manifest" href="manifest.webmanifest?v=1.1.0">
+<link rel="icon" href="icons/favicon-48.png?v=1.1.0">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png?v=1.1.0">
 <style>
 /* =====================================================================
    S-Tec Performance Management System — 화면 디자인
@@ -233,6 +233,17 @@ table.t tr.tot td{font-weight:800;background:var(--soft)}
 .ti .ctrl .u{font-size:12px;color:var(--mute);min-width:26px}
 .ti .amt{font-size:12px}
 .ti.has{background:color-mix(in srgb,var(--c) 6%,var(--panel))}
+.autop{border:1px solid #F3D3A1;background:linear-gradient(135deg,rgba(232,117,10,.08),rgba(11,31,138,.05));border-radius:14px;padding:10px 12px;margin:4px 0 10px}
+.autop .ah{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px}.autop .ah b{color:#B45309}
+.autop .lv{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:700}.autop .lv input[type=range]{width:180px;accent-color:#E8750A}.autop .lv input[type=number]{width:70px;padding:5px 7px}
+.sw2{display:flex;gap:4px;align-items:center;font-size:13px;font-weight:700}
+.stbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;border-radius:10px;padding:7px 10px;margin-bottom:10px;background:var(--soft)}.stbar.aut{background:#FFF4E5;color:#8A4B00}.stbar.man{background:var(--grl);color:var(--gr)}
+html[data-theme="dark"] .stbar.aut{background:#3a2a12;color:#FFD59A}.stbar .r{margin-left:auto}
+.lnk{border:0;background:none;color:var(--nv2);text-decoration:underline;padding:0;font-size:12.5px}
+.ti .chk{display:inline-flex;align-items:center}.ti .chk input{width:17px;height:17px;accent-color:var(--gr);margin:0}
+.ti.off{opacity:.42;background:var(--soft)}.ti.off .tn{text-decoration:line-through}
+.ti em.ao{font-style:normal;font-size:10px;font-weight:800;color:#B45309;background:#FFF4E5;border-radius:6px;padding:0 5px}.ti em.mo{font-style:normal;font-size:10px;font-weight:800;color:#64748B;background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:0 5px}
+tr.offr td{opacity:.45}
 .catbar{display:flex;gap:6px;align-items:center;margin:12px 0 6px;font-weight:800;font-size:13px;color:var(--c)}
 .catbar small{font-weight:500;color:var(--mute);font-size:11.5px}
 .evlist{display:flex;flex-direction:column;gap:8px}

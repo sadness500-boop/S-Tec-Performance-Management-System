@@ -9,7 +9,7 @@ const APP = {
   name: 'S-Tec Performance Management System',
   ko: '에스텍 성과 관리 시스템',
   code: 'stpm',
-  version: 'v1.0.1',
+  version: 'v1.1.0',
   build: '2026-11-20',
   shareUrl: 'https://sadness500-boop.github.io/S-Tec-Performance-Management-System/',
   apkUrl: 'https://github.com/sadness500-boop/S-Tec-Performance-Management-System/releases/download/app-latest/stpm-latest.apk',
@@ -68,10 +68,12 @@ function shrinkPhoto(file, max = 640) {
  * 저장소
  * ===================================================================== */
 const PM_KEY = 'stec_pm_data';
-let PM = { recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {}, ver: 1 };
+const AUTO_CACHE = new Map();
+let PM = { recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {}, adj: {}, autoDef: null, ver: 1 };
 try { PM = Object.assign(PM, JSON.parse(localStorage.getItem(PM_KEY) || '{}')); } catch (e) { }
 Object.keys(PM.qc || {}).forEach(k => { if (/^qc2024_/.test(k)) delete PM.qc[k]; });   // v1.0.1 — 이전 버전 예시(실제 점수) 정리
 function savePM() {                                             // 로그인 시 여러 기기 동기화(auth 모듈이 감쌈)
+  AUTO_CACHE.clear();
   try { localStorage.setItem(PM_KEY, JSON.stringify(PM)); }
   catch (e) { toast('이 기기 저장 공간이 부족합니다 — 오래된 사진을 지우거나 「☁ 공유 서버」에 올려 두세요', 5000); }
 }
@@ -96,18 +98,20 @@ function jobsOf(work, st) {
 let SITE_LIST = [], SITE = {};
 function buildSites() {
   const a = [];
-  SITES.forEach(s => a.push({ key: 'b' + s.id, name: s.name, org: 'best', br: s.br, orgN: s.br + '지사', ind: indOf(s.name, s.type), jobs: jobsOf(s.work, s), total: s.total || 0, addr: s.addr || '', head: [s.pos, s.mgr].filter(Boolean).join(' '), since: s.since, shift: s.shift, work: s.work }));
-  GROUP_SITES.forEach((g, i) => { const o = ORGS.find(x => x.k === g[0]); a.push({ key: 'g' + i, name: g[1], org: g[0], br: '', orgN: o ? o.n : g[0], ind: g[2], jobs: ['cln'], total: g[4], addr: '', head: g[3], work: '미화' }); });
+  SITES.forEach(s => a.push({ key: 'b' + s.id, name: s.name, org: 'best', br: s.br, orgN: s.br + '지사', ind: indOf(s.name, s.type), jobs: jobsOf(s.work, s), total: s.total || 0, hc: { sec: s.sec || 0, cln: s.cln || 0, etc: s.etc || 0 }, addr: s.addr || '', head: [s.pos, s.mgr].filter(Boolean).join(' '), since: s.since, shift: s.shift, work: s.work }));
+  GROUP_SITES.forEach((g, i) => { const o = ORGS.find(x => x.k === g[0]); a.push({ key: 'g' + i, name: g[1], org: g[0], br: '', orgN: o ? o.n : g[0], ind: g[2], jobs: ['cln'], total: g[4], hc: { cln: g[4] }, addr: '', head: g[3], work: '미화', shift: '주간' }); });
   (PM.usites || []).forEach(u => a.push(Object.assign({ jobs: ['sec'], total: 0, addr: '', head: '' }, u, { user: true })));
   // 사업장 성과 설정(산업·업종 변경) 반영
-  a.forEach(s => { const c = PM.cfg[s.key]; if (c) { if (c.ind) s.ind = c.ind; if (c.jobs && c.jobs.length) s.jobs = c.jobs; if (c.area) s.area = c.area; } });
+  a.forEach(s => { const c = PM.cfg[s.key]; if (c) { if (c.ind) s.ind = c.ind; if (c.jobs && c.jobs.length) s.jobs = c.jobs; if (c.area) s.area = c.area; if (c.shift) s.shift = c.shift; } });
   SITE_LIST = a; SITE = {}; a.forEach(s => SITE[s.key] = s);
 }
 const orgName = k => (ORGS.find(o => o.k === k) || { n: k }).n;
 function siteOrgLabel(s) { return s.org === 'best' ? `에스텍베스트 ${s.br}지사` : orgName(s.org); }
 
 /* ---------- 업무 항목: 사업장·업종·산업에 맞는 목록 · 계획량 · 환산가치 ---------- */
-function tasksFor(job, ind) { return (TASKS[job] || []).filter(t => !t.i || !ind || t.i.includes(ind)); }
+function tasksFor(job, ind, siteKey) { const off = siteKey && PM.cfg[siteKey] && PM.cfg[siteKey].off || {}; return (TASKS[job] || []).filter(t => (!t.i || !ind || t.i.includes(ind)) && !off[t.id]); }
+function tasksAll(job, ind) { return (TASKS[job] || []).filter(t => !t.i || !ind || t.i.includes(ind)); }
+const isOff = (siteKey, id) => !!(PM.cfg[siteKey] && PM.cfg[siteKey].off && PM.cfg[siteKey].off[id]);
 function valOf(id) { const v = PM.val[id]; return v != null && v !== '' ? +v : (TASK[id] && TASK[id].v) || 0; }
 function planOf(siteKey, id) { const c = PM.cfg[siteKey]; const p = c && c.plan && c.plan[id]; return p != null && p !== '' ? +p : (TASK[id] && TASK[id].p) || 0; }
 function planMonthOf(siteKey, id) { const c = PM.cfg[siteKey]; const p = c && c.planM && c.planM[id]; return p != null && p !== '' ? +p : (TASK[id] && TASK[id].pm) || 0; }
@@ -121,6 +125,77 @@ const recId = (site, job, d) => `${site}|${job}|${d}`;
 function getRec(site, job, d) { return PM.recs[recId(site, job, d)] || null; }
 function putRec(r) { r.id = recId(r.site, r.job, r.d); r.at = new Date().toISOString(); r.by = r.by || (UI.manager && UI.manager.name) || ''; PM.recs[r.id] = r; savePM(); queueShare(r.id); }
 function delRec(id) { delete PM.recs[id]; savePM(); queueShare(id, true); }
+
+/* =====================================================================
+ * 자동 성과 입력(1~100%) — 기록이 없는 날은 「표준 업무량 × 성과 수준」으로 자동 산출(저장하지 않는 가상 기록)
+ *  · 직접 입력·저장한 날은 그 기록이 우선 · 항목 「해당」 체크를 끈 업무는 제외
+ *  · 출력 전 수량 조정(PM.adj): 기간·항목별 배율·가산 → 자동 산출분에만 적용
+ * ===================================================================== */
+function autoDef() { const y = kstNow().getFullYear(); return Object.assign({ on: true, lvl: 90, from: y + '-01-01' }, PM.autoDef || {}); }
+function autoCfg(siteKey) { const d = autoDef(), c = (PM.cfg[siteKey] || {}).auto || {}; return { on: c.on != null ? c.on : d.on, lvl: c.lvl != null ? +c.lvl : +d.lvl, from: d.from }; }
+function siteHeads(s, job) {
+  const c = PM.cfg[s.key] || {}; if (c.heads && c.heads[job] != null && c.heads[job] !== '') return +c.heads[job];
+  const hc = s.hc || {};
+  if ((job === 'sec' || job === 'cln') && hc[job]) return hc[job];
+  const others = s.jobs.filter(j => !((j === 'sec' || j === 'cln') && hc[j]));
+  const pool = hc.etc || Math.max(0, (s.total || 0) - (hc.sec || 0) - (hc.cln || 0));
+  return Math.max(1, Math.round((pool || 1) / Math.max(1, others.length)));
+}
+function shiftInfo(shift) {
+  const t = String(shift || '');
+  if (/격일/.test(t)) return { f: .5, h24: true }; if (/5조/.test(t)) return { f: .4, h24: true }; if (/4조/.test(t)) return { f: .5, h24: true };
+  if (/3조/.test(t)) return { f: .67, h24: true }; if (/야간/.test(t)) return { f: 1, h24: true }; return { f: 1, h24: false };
+}
+function hashSeed(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function rng(seed) { let a = seed || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function sinceIso(s) { const m = /(\d{4})\D(\d{1,2})\D(\d{1,2})/.exec(s.since || ''); return m ? `${m[1]}-${pad(m[2])}-${pad(Math.min(28, +m[3]))}` : ''; }
+function adjFor(siteKey, job, id, d) { let f = 1, a = 0; ((PM.adj || {})[siteKey] || []).forEach(x => { if (x.job === job && x.t === id && d >= x.from && d <= x.to) { f *= x.f; a += x.a || 0; } }); return [f, a]; }
+function autoQ(s, job, d, lvlOverride) {
+  const cf = autoCfg(s.key), lvl = Math.max(1, Math.min(100, lvlOverride != null ? lvlOverride : cf.lvl)) / 100;
+  const dt = parseD(d), dow = dt.getDay(), wkend = dow === 0 || dow === 6, R = rng(hashSeed(s.key + '|' + job + '|' + d));
+  const heads = siteHeads(s, job), sh = shiftInfo(s.shift), ind = s.ind || 'office';
+  let onDuty = heads * sh.f; if (!sh.h24 && wkend) onDuty = heads * (AUTO_WEEKEND[ind] ?? .3);
+  const q = {};
+  tasksFor(job, ind, s.key).forEach(t => {
+    if (AUTO_MANUAL.includes(t.id) || t.k === 'amt') return;
+    let v = 0;
+    if (t.k === 'score') { if (dow === AUTO_W[t.id]) v = Math.round(60 + 38 * lvl + (R() - .5) * 6); }
+    else if (AUTO_W[t.id] != null) { if (dow === AUTO_W[t.id] && R() < lvl) v = 1; }
+    else if (AUTO_M[t.id] != null) { if (dt.getDate() === AUTO_M[t.id] && R() < lvl) v = 1; }
+    else if (t.per === 'm') { const pm = planMonthOf(s.key, t.id); if (dt.getDate() === 15 && pm) v = Math.round(pm * lvl * 2) / 2; }
+    else if (AUTO_F[t.id] === 'cctv') { if (heads) v = Math.round((sh.h24 ? 24 : wkend ? 0 : 10) * (.7 + .3 * lvl)); }
+    else if (t.id === 'c_area' && s.area) { v = s.area * (wkend && !sh.h24 ? (AUTO_WEEKEND[ind] ?? .3) : 1) * lvl * (.95 + R() * .1); }
+    else {
+      const pl = planOf(s.key, t.id);
+      if (pl) v = pl * lvl * (wkend && !sh.h24 && t.job !== 'sec' ? (AUTO_WEEKEND[ind] ?? .3) : 1) + (R() - .5) * .6;
+      else if (AUTO_N[t.id]) v = AUTO_N[t.id] * onDuty * (AUTO_FLOW.includes(t.id) ? (AUTO_IND[ind] || 1) * (wkend ? .6 : 1) : 1) * lvl * (.88 + R() * .24);
+    }
+    const [f, a] = adjFor(s.key, job, t.id, d); v = v * f + a;
+    if (v > 0 && v < 1 && t.k !== 'score') v = R() < v ? 1 : 0;
+    v = Math.max(0, Math.round(v));
+    if (v) q[t.id] = v;
+  });
+  return q;
+}
+function autoRec(s, job, d) {
+  const key = s.key + '|' + job + '|' + d; let r = AUTO_CACHE.get(key);
+  if (!r) { r = { id: key, d, site: s.key, job, q: autoQ(s, job, d), a: {}, ev: [], note: '', auto: true }; AUTO_CACHE.set(key, r); }
+  return r;
+}
+function autoRecsIn(r, F) {
+  const out = [], td = today(), def = autoDef();
+  const list = F.site ? [SITE[F.site]].filter(Boolean) : SITE_LIST.filter(s => siteOk(s, F));
+  list.forEach(s => {
+    const cf = autoCfg(s.key); if (!cf.on || !siteOk(s, F)) return;
+    let from = r.from > def.from ? r.from : def.from; const since = sinceIso(s); if (since && since > from) from = since;
+    const to = r.to < td ? r.to : td; if (from > to) return;
+    s.jobs.forEach(j => {
+      if (F.job && j !== F.job) return;
+      for (let d = parseD(from); isoD(d) <= to; d = addDays(d, 1)) { const ds = isoD(d); if (!PM.recs[recId(s.key, j, ds)]) out.push(autoRec(s, j, ds)); }
+    });
+  });
+  return out;
+}
 
 /* =====================================================================
  * 기간
@@ -158,7 +233,10 @@ function siteOk(s, F) {
   if (allow && s.org === 'best' && !allow.includes(s.br)) return false;
   return true;
 }
-function recsIn(r, F) { return Object.values(PM.recs).filter(x => x.d >= r.from && x.d <= r.to && (!F.job || x.job === F.job) && siteOk(SITE[x.site], F)); }
+function recsIn(r, F) {
+  const man = Object.values(PM.recs).filter(x => x.d >= r.from && x.d <= r.to && (!F.job || x.job === F.job) && siteOk(SITE[x.site], F));
+  return man.concat(autoRecsIn(r, F));
+}
 function aggregate(r, F = {}) {
   const rs = recsIn(r, F);
   const A = { range: r, recs: rs, tasks: {}, cats: {}, days: {}, sites: {}, jobs: {}, ev: [], value: 0, amount: 0, act: 0, plan: 0, planAct: 0, recDays: new Set(), siteN: new Set(), score: [] };
@@ -169,7 +247,7 @@ function aggregate(r, F = {}) {
     const st = A.sites[x.site] = A.sites[x.site] || { key: x.site, act: 0, val: 0, plan: 0, planAct: 0, prev: 0, ev: 0, n: 0, days: new Set(), jobs: new Set(), score: [] };
     const jb = A.jobs[x.job] = A.jobs[x.job] || { act: 0, val: 0, n: 0 };
     st.days.add(x.d); st.jobs.add(x.job); st.n++; day.n++; jb.n++;
-    tasksFor(x.job, s && s.ind).forEach(t => {
+    tasksFor(x.job, s && s.ind, x.site).forEach(t => {
       const q = +((x.q || {})[t.id] || 0), am = +((x.a || {})[t.id] || 0), pl = t.per === 'm' ? 0 : planOf(x.site, t.id);
       const T = A.tasks[t.id] = A.tasks[t.id] || { id: t.id, plan: 0, act: 0, amt: 0, val: 0, n: 0, sum: 0 };
       if (t.k === 'score' || t.k === 'avg') { if (q) { T.sum += q; T.n++; if (t.k === 'score') { A.score.push(q); st.score.push(q); } } return; }
@@ -185,7 +263,7 @@ function aggregate(r, F = {}) {
   });
   // 월 단위 계획(교육시간 등): 기간 안의 월 수 × 월 계획
   const months = Math.max(1, Math.round(daysIn(r) / 30.4));
-  Object.values(A.sites).forEach(st => st.jobs.forEach(j => tasksFor(j, SITE[st.key] && SITE[st.key].ind).filter(t => t.per === 'm').forEach(t => {
+  Object.values(A.sites).forEach(st => st.jobs.forEach(j => tasksFor(j, SITE[st.key] && SITE[st.key].ind, st.key).filter(t => t.per === 'm').forEach(t => {
     const pm = planMonthOf(st.key, t.id); if (!pm) return; const T = A.tasks[t.id]; if (!T) return;
     const need = r.from === r.to || daysIn(r) < 28 ? 0 : pm * months; if (!need) return;
     T.plan += need; A.plan += need; A.planAct += Math.min(T.act, need); st.plan += need; st.planAct += Math.min(T.act, need);
@@ -193,7 +271,7 @@ function aggregate(r, F = {}) {
   A.rate = A.plan ? A.planAct / A.plan * 100 : null;
   A.recDays = A.recDays.size; A.siteN = A.siteN.size;
   A.evBy = {}; Object.keys(EVT).forEach(k => A.evBy[k] = A.ev.filter(e => e.t === k));
-  A.prevN = A.prevQ || 0; A.incidents = A.evBy.inc.length;
+  A.prevN = A.prevQ || 0; A.autoN = rs.filter(x => x.auto).length; A.manN = rs.length - A.autoN; A.incidents = A.evBy.inc.length;
   A.unresolved = A.evBy.inc.filter(e => !String(e.action || '').trim()).length;
   A.selfQ = A.score.length ? A.score.reduce((a, b) => a + b, 0) / A.score.length : null;
   A.qc = qcAvgIn(r, F);

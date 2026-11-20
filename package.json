@@ -1,6 +1,6 @@
 {
   "name": "s-tec-performance-management-system",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "description": "S-Tec Performance Management System(에스텍 성과 관리 시스템) — 안드로이드 앱 포장(Capacitor). Designed & Developed by Rat Rae Choi",
   "scripts": {

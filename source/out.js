@@ -200,6 +200,7 @@ function monthlyBlocks(s, r, F) {
   B.push({ k: 'h', t: '2. 정량 성과 (업무 계수화)' });
   B.push({ k: 'box', title: `「보이지 않는 성과」 — SPI ${A.spi ? nf(A.spi.total, 1) + '점 (' + gradeOf(A.spi.total)[0] + ' ' + gradeOf(A.spi.total)[1] + ')' : '-'}`, items: highlights(A, 7) });
   B.push({ k: 'table', head: ['업종', '업무 항목', '단위', '계획', '실적', '달성률', '환산가치(원)'], w: [.7, 2.6, .6, .9, .9, .9, 1.2], align: ['c', '', 'c', 'r', 'r', 'r', 'r'], rows: catRows(A).concat([{ tot: true, cells: ['합계', '', '', nf(A.plan), nf(A.act), A.rate == null ? '-' : nf(A.rate, 1) + '%', nf(A.value)] }]) });
+  if (A.autoN) B.push({ k: 'p', t: `※ 직접 입력 ${A.manN}건 외 ${A.autoN}건(업종·일 단위)은 사업장 인원·근무형태·산업 기준 표준 업무량 × 성과 수준(${autoCfg(s.key).lvl}%)으로 산출한 값이며, 현장 확인 후 조정·관리합니다.`, size: 16, color: C.gray });
   const tr = trendData(A, UI.per || 'm');
   if (A.recs.length > 1) B.push({ k: 'img', src: chartPng('bar', { title: '일자별 업무량 · 환산가치', labels: tr.lb, bars: [{ name: '업무량', data: tr.act, color: '#2A44D4' }], line: { name: '환산가치(원)', data: tr.val, color: '#1B7A34' } }, 1100, 440), wIn: 6.6, ratio: .4 });
   B.push({ k: 'table', head: ['구분', '전기', '당기', '증감'], w: [2, 1.4, 1.4, 1.2], align: ['', 'r', 'r', 'r'], rows: [['업무 수행량', nf(P.act), nf(A.act), dPct(A.act, P.act)], ['예방·적발 활동(건)', nf(P.prevN), nf(A.prevN), dPct(A.prevN, P.prevN)], ['환산가치(원)', nf(P.value), nf(A.value), dPct(A.value, P.value)], ['사건사고 예방·적발(건)', nf(P.incidents), nf(A.incidents), dPct(A.incidents, P.incidents)]] });
@@ -270,7 +271,8 @@ function deckSlides(r, F) {
   const kp = [['성과지수 SPI', A.spi ? nf(A.spi.total, 1) : '-', `${g[0]} ${g[1]}`, C.navy], ['업무 수행량', shortN(A.act), dPct(A.act, P.act), '2A44D4'], ['예방·적발', nf(A.prevN) + '건', dPct(A.prevN, P.prevN), 'C0392B'], ['환산가치', won(A.value), '연 누계 ' + won(Y.value), C.green], ['계획 달성률', pct(A.rate), A.plan ? `계획 ${nf(A.plan)}` : '-', 'E8750A']];
   const sl3 = slideBase('Ⅰ. 주요업무 성과 — 1. 성과 요약', ++no, who);
   kp.forEach((k, i) => { const x = .45 + i * 2.5; sl3.push(Rc(x, 1.15, 2.35, 1.35, i ? 'FFFFFF' : k[3], { line: i ? 'DCE3F3' : undefined, r: .12 }), T(x + .15, 1.2, 2.1, .35, k[0], { size: 11, color: i ? C.gray : 'D7DEFF', bold: true }), T(x + .15, 1.5, 2.1, .6, k[1], { size: 24, bold: true, color: i ? k[3] : 'FFFFFF' }), T(x + .15, 2.08, 2.1, .32, k[2], { size: 10, color: i ? C.gray : 'D7DEFF' })); });
-  sl3.push(Rc(.45, 2.75, 12.45, 4.2, 'EEF7F1', { r: .1 }), T(.7, 2.85, 12, .45, '「보이지 않는 성과」 — 사고가 일어나지 않게 한 활동을 숫자로', { size: 15, bold: true, color: C.greenD }), T(.8, 3.35, 11.9, 3.5, highlights(A, 7).map(h => '✔  ' + h).join('\n') || '기록된 실적이 없습니다.', { size: 14, color: C.ink, line: 1.45 }));
+  if (A.autoN) sl3.push(T(.45, 6.62, 12.45, .3, `※ 일부 수치는 사업장 인원·근무형태·산업 기준 표준 업무량 × 성과 수준으로 산출 후 현장 확인·조정한 값입니다 (직접 입력 ${A.manN}건 · 자동 산출 ${A.autoN}건)`, { size: 9, color: C.gray }));
+  sl3.push(Rc(.45, 2.75, 12.45, 3.8, 'EEF7F1', { r: .1 }), T(.7, 2.85, 12, .45, '「보이지 않는 성과」 — 사고가 일어나지 않게 한 활동을 숫자로', { size: 15, bold: true, color: C.greenD }), T(.8, 3.35, 11.9, 3.5, highlights(A, 7).map(h => '✔  ' + h).join('\n') || '기록된 실적이 없습니다.', { size: 14, color: C.ink, line: 1.45 }));
   S.push(sl3);
   // 4 사건사고 예방·적발 (르노삼성 1번 표: 당월/누계 건수·금액)
   const prevT = Object.values(TASK).filter(t => t.c === 'prev' && (!F.job || t.job === F.job) && ((A.tasks[t.id] || {}).act || (Y.tasks[t.id] || {}).act));
@@ -389,6 +391,7 @@ async function outPerfXlsx(r, F) {
       ids.forEach(t => { const a = A.tasks[t.id] || {}, p = P.tasks[t.id] || {}, y = Y.tasks[t.id] || {}, avg = t.k === 'score' || t.k === 'avg'; xlRow(ws, n++, [c.n, JOBS[t.job].s, t.n, t.u, a.plan || null, avg ? (a.n ? +(a.sum / a.n).toFixed(1) : null) : a.act || 0, a.plan ? +(Math.min(a.act, a.plan) / a.plan * 100).toFixed(1) : null, (a.val || 0) + (t.k === 'amt' ? 0 : 0) || null, avg ? (p.n ? +(p.sum / p.n).toFixed(1) : null) : p.act || 0, p.val || null, avg ? (y.n ? +(y.sum / y.n).toFixed(1) : null) : y.act || 0, y.val || null], { center: [0, 1, 3] }); });
     });
     xlRow(ws, n++, ['합계', '', '', '', A.plan, A.act, A.rate == null ? null : +A.rate.toFixed(1), A.value, P.act, P.value, Y.act, Y.value], { bold: true, fill: XL.tot });
+    if (A.autoN) { ws.mergeCells(n + 1, 1, n + 1, 12); const nc = ws.getCell(n + 1, 1); nc.value = `※ 직접 입력 ${A.manN}건 외 ${A.autoN}건(업종·일 단위)은 표준 업무량 × 성과 수준으로 자동 산출한 값입니다(현장 확인 후 조정).`; nc.font = { name: W_FONT, size: 9, color: { argb: 'FF5B6475' } }; n++; }
     n++; xlRow(ws, n++, ['성과지수(SPI)', '', A.spi ? +A.spi.total.toFixed(1) : '-', A.spi ? gradeOf(A.spi.total)[0] + ' ' + gradeOf(A.spi.total)[1] : ''], { bold: true, fill: XL.ik });
     highlights(A, 9).forEach(h => { ws.mergeCells(n, 1, n, 12); const cc = ws.getCell(n, 1); cc.value = '✔ ' + h; cc.font = { name: W_FONT, size: 10 }; n++; });
     // 2) 일자별 실적 (업종마다)

@@ -61,7 +61,7 @@ function renderDash() {
     <label style="flex:1 1 220px">사업장<select id="fSite">${siteOptions(F, F.site)}</select></label>
     <button class="btn" id="fPull" title="로그인한 계정으로 공유 서버의 현장 기록을 받아 함께 집계">☁ 서버 기록 받기</button>
   </div>
-  <div class="card" style="--c:#0B1F8A"><h2>📈 ${esc(r.label)} <span class="r">${esc(scopeLabel(F))} · 기록 ${nf(A.recs.length)}건 · ${nf(A.siteN)}개 사업장 · ${nf(A.recDays)}일</span></h2></div>
+  <div class="card" style="--c:#0B1F8A"><h2>📈 ${esc(r.label)} <span class="r">${esc(scopeLabel(F))} · 직접 입력 ${nf(A.manN)}건 · 자동 산출 ${nf(A.autoN)}건 · ${nf(A.siteN)}개 사업장 · ${nf(A.recDays)}일 <button class="btn sm" id="fAdj" type="button">✎ 수량 조정</button></span></h2></div>
   <div class="kpis">
     <div class="kpi spi"><small>성과지수 SPI</small><b>${A.spi ? nf(A.spi.total, 1) : '-'}<span class="gauge">${g[0]} ${g[1]}</span></b><span>${A.spi ? Object.entries(A.spi.parts).map(([k, v]) => ({ rate: '달성', quality: '품질', safety: '안전', improve: '개선', edu: '교육' })[k] + ' ' + Math.round(v)).join(' · ') : '실적을 기록하면 계산합니다'}</span></div>
     <div class="kpi" style="--c:#0B1F8A"><small>업무 수행량</small><b>${shortN(A.act)}</b><span>${dlt(A.act, P.act)}</span></div>
@@ -91,6 +91,7 @@ function bindDash() {
   $('#fOrg').onchange = e => set('org', e.target.value);
   if ($('#fBr')) $('#fBr').onchange = e => set('br', e.target.value);
   $('#fInd').onchange = e => set('ind', e.target.value); $('#fJob').onchange = e => set('job', e.target.value); $('#fSite').onchange = e => set('site', e.target.value);
+  $('#fAdj').onclick = () => openAdjust();
   $('#fPull').onclick = async () => { const n = await pullShare(V.A.range); if (n != null) { toast(`공유 서버 기록 ${n}건을 받았습니다`); renderAll(); } };
   $$('#p-dash [data-evsite]').forEach(b => b.onclick = () => { UI.F = Object.assign(curF(), { site: b.dataset.evsite }); saveUI(); renderDash(); });
 }
@@ -185,28 +186,42 @@ function renderEntryCal() {
   const has = new Set(Object.values(PM.recs).filter(x => x.site === E.site && x.d.startsWith(`${y}-${pad(m + 1)}`)).map(x => +x.d.slice(8)));
   let h = `<div class="cal">${WKK.map(w => `<b>${w}</b>`).join('')}`; for (let i = 0; i < f.getDay(); i++) h += '<button class="x" tabindex="-1"></button>';
   for (let i = 1; i <= n; i++) h += `<button type="button" data-day="${i}" class="${has.has(i) ? 'has' : ''} ${i === d.getDate() ? 'on' : ''}">${i}</button>`;
-  $('#eCal').innerHTML = h + `</div><p class="hint">초록 날짜 = 이 사업장 기록 있음 (${has.size}일 / ${n}일)</p>`;
+  $('#eCal').innerHTML = h + `</div><p class="hint">초록 날짜 = 직접 입력한 날 (${has.size}일 / ${n}일) · 나머지 지난 날은 ${autoCfg(E.site).on ? '자동 산출' : '기록 없음'}</p>`;
   $('#eCal').onclick = e => { const b = e.target.closest('[data-day]'); if (!b) return; E.d = isoD(new Date(y, m, +b.dataset.day)); $('#eD').value = E.d; renderEntrySites(); renderEntryCal(); renderEntryMain(); };
+}
+function autoPanelHtml(s, job) {
+  const cf = autoCfg(s.key), h = siteHeads(s, job), sh = shiftInfo(s.shift);
+  return `<div class="autop"><div class="ah"><b>⚡ 자동 성과 입력</b><label class="sw2"><input type="checkbox" id="aOn" ${cf.on ? 'checked' : ''}> 사용</label>
+    <span class="lv">성과 수준 <input type="range" id="aLvl" min="1" max="100" value="${cf.lvl}"><input type="number" id="aLvlN" min="1" max="100" value="${cf.lvl}">%</span>
+    <button class="btn sm" id="aHeads" type="button">인원·규모 설정</button></div>
+    <div class="hint">기준: ${JOBS[job].s} <b>${h}명</b> · ${esc(s.shift || '근무형태 미입력')}${sh.h24 ? ` → 하루 근무 약 ${nf(h * sh.f, 1)}명` : ''} · ${INDS[s.ind] ? INDS[s.ind].s : ''} · ${s.area ? '관리 면적 ' + nf(s.area) + '㎡' : '면적 미입력(인원 기준)'} — 기록을 저장하지 않은 날은 이 기준으로 자동 산출됩니다. 무단침입·응급환자 등 실제로 일어난 일은 자동으로 넣지 않습니다.</div></div>`;
 }
 function renderEntryMain() {
   const E = V.entry, s = SITE[E.site], box = $('#eMain');
   if (!s) { box.innerHTML = '<div class="card"><div class="empty">왼쪽에서 사업장을 고르세요.</div></div>'; return; }
   if (!E.job || !s.jobs.includes(E.job)) E.job = s.jobs[0];
-  const r = getRec(s.key, E.job, E.d) || { q: {}, a: {}, ev: [], note: '', shift: '' };
+  const saved = getRec(s.key, E.job, E.d), cf = autoCfg(s.key), future = E.d > today();
+  const auto = !saved && cf.on && !future ? autoRec(s, E.job, E.d) : null;
+  const r = saved || { q: auto ? Object.assign({}, auto.q) : {}, a: {}, ev: [], note: '', shift: '' };
   E.cur = JSON.parse(JSON.stringify(r)); E.cur.q = E.cur.q || {}; E.cur.a = E.cur.a || {}; E.cur.ev = E.cur.ev || [];
-  const tasks = tasksFor(E.job, s.ind), J = JOBS[E.job];
+  const tasks = tasksAll(E.job, s.ind), J = JOBS[E.job];
   let tg = '';
   Object.entries(CATS).forEach(([ck, c]) => {
     const ts = tasks.filter(t => t.c === ck); if (!ts.length) return;
     tg += `<div class="catbar" style="--c:${c.color}">${c.ic} ${c.n} <small>${esc(c.d)}</small></div><div class="tgrid">` + ts.map(t => {
-      const q = E.cur.q[t.id] ?? '', pl = t.per === 'm' ? planMonthOf(s.key, t.id) : planOf(s.key, t.id), v = valOf(t.id);
-      return `<div class="ti ${q ? 'has' : ''}" style="--c:${c.color}" data-t="${t.id}"><div class="tn">${esc(t.n)}<small>${pl ? (t.per === 'm' ? '월' : '일') + ' 계획 ' + nf(pl) : ''}${v ? ' · ' + nf(v) + '원/' + t.u : ''}</small></div>
-        <div class="ctrl">${t.k === 'amt' || t.k === 'score' || t.k === 'avg' ? '' : '<button type="button" data-d="-1" aria-label="빼기">−</button>'}<input type="number" inputmode="decimal" min="0" step="any" value="${q}" data-q="${t.id}" aria-label="${esc(t.n)}">${t.k === 'amt' || t.k === 'score' || t.k === 'avg' ? '' : '<button type="button" data-d="1" aria-label="더하기">＋</button>'}<span class="u">${t.u}</span></div>
-        ${t.amt ? `<input class="amt" type="number" min="0" step="1000" placeholder="금액(원) — 적발·습득 금액" value="${E.cur.a[t.id] ?? ''}" data-a="${t.id}">` : ''}</div>`;
+      const off = isOff(s.key, t.id), q = off ? '' : (E.cur.q[t.id] ?? ''), pl = t.per === 'm' ? planMonthOf(s.key, t.id) : planOf(s.key, t.id), v = valOf(t.id), man = AUTO_MANUAL.includes(t.id) || t.k === 'amt';
+      const noStep = t.k === 'amt' || t.k === 'score' || t.k === 'avg';
+      return `<div class="ti ${q ? 'has' : ''} ${off ? 'off' : ''}" style="--c:${c.color}" data-t="${t.id}"><div class="tn"><label class="chk" title="이 사업장 해당 업무(해제하면 자동 입력·집계에서 빠짐)"><input type="checkbox" data-on="${t.id}" ${off ? '' : 'checked'}></label>${esc(t.n)}${man ? '<em class="mo" title="실제로 일어난 일만 직접 입력">직접</em>' : auto && q ? '<em class="ao">자동</em>' : ''}<small>${pl ? (t.per === 'm' ? '월' : '일') + ' 계획 ' + nf(pl) : ''}${v ? ' · ' + nf(v) + '원/' + t.u : ''}</small></div>
+        <div class="ctrl">${noStep ? '' : `<button type="button" data-d="-1" aria-label="빼기" ${off ? 'disabled' : ''}>−</button>`}<input type="number" inputmode="decimal" min="0" step="any" value="${q}" data-q="${t.id}" aria-label="${esc(t.n)}" ${off ? 'disabled' : ''}>${noStep ? '' : `<button type="button" data-d="1" aria-label="더하기" ${off ? 'disabled' : ''}>＋</button>`}<span class="u">${t.u}</span></div>
+        ${t.amt && !off ? `<input class="amt" type="number" min="0" step="1000" placeholder="금액(원) — 적발·습득 금액" value="${E.cur.a[t.id] ?? ''}" data-a="${t.id}">` : ''}</div>`;
     }).join('') + '</div>';
   });
+  const offN = tasks.filter(t => isOff(s.key, t.id)).length;
   box.innerHTML = `<div class="card" style="--c:${J.color}"><h2>${siteBadge(s)} ${esc(s.name)} <span class="r">${esc(siteOrgLabel(s))} · ${INDS[s.ind] ? INDS[s.ind].ic + ' ' + INDS[s.ind].n : ''} · ${fmtD(E.d)}</span></h2><div class="body">
-    <div class="jobtabs">${s.jobs.map(j => `<button type="button" data-j="${j}" style="--c:${JOBS[j].color}" aria-pressed="${j === E.job}">${JOBS[j].ic} ${JOBS[j].n}${getRec(s.key, j, E.d) ? ' ✔' : ''}</button>`).join('')}<button type="button" class="btn sm" id="eJobs" title="이 사업장의 업종 바꾸기">업종 설정</button></div>
+    <div class="jobtabs">${s.jobs.map(j => `<button type="button" data-j="${j}" style="--c:${JOBS[j].color}" aria-pressed="${j === E.job}">${JOBS[j].ic} ${JOBS[j].n}${getRec(s.key, j, E.d) ? ' ✔' : ''}</button>`).join('')}<button type="button" class="btn sm" id="eJobs" title="이 사업장의 업종·인원·계획 바꾸기">업종·인원 설정</button></div>
+    ${autoPanelHtml(s, E.job)}
+    <div class="stbar ${saved ? 'man' : auto ? 'aut' : ''}">${saved ? '✍ 직접 입력·저장한 기록입니다.' : auto ? `⚡ 자동 산출값(성과 수준 ${cf.lvl}%)이 채워져 있습니다 — 그대로 두면 자동으로 집계되고, 고친 뒤 「💾 저장」하면 실적으로 확정됩니다.` : future ? '앞으로의 날짜는 자동 산출하지 않습니다.' : '자동 입력이 꺼져 있습니다 — 직접 입력하세요.'}
+      <span class="r">해당 업무 ${tasks.length - offN}/${tasks.length} · <button type="button" class="lnk" id="eAllOn">모두 해당</button></span></div>
     <div class="grid"><label class="f">근무조·근무형태<input id="eShift" value="${esc(E.cur.shift || s.shift || '')}" placeholder="예: 주간 / A조 / 격일제"></label><label class="f">작성자<input id="eBy" value="${esc(E.cur.by || (UI.manager ? [UI.manager.title, UI.manager.name].filter(Boolean).join(' ') : ''))}"></label></div>
     ${tg}
     <div class="catbar" style="--c:#7A2E8E">📎 사건사고 · 주요 작업 · 업무개선 · 교육 · 우수사례 <small>보고서의 「첨부」와 「작업 전·후 사진」으로 들어갑니다</small></div>
@@ -214,11 +229,22 @@ function renderEntryMain() {
     <div class="row" style="margin-top:8px">${Object.entries(EVT).map(([k, v]) => `<button class="btn sm" type="button" data-addev="${k}">${v.ic} ${v.n} 추가</button>`).join('')}</div>
     <label class="f" style="margin-top:12px">특이사항·메모 (보고서 「기타」)<textarea id="eNote" rows="2">${esc(E.cur.note || '')}</textarea></label>
   </div></div>
-  <div class="savebar"><span class="st" id="eSt">${getRec(s.key, E.job, E.d) ? '저장된 기록을 고치는 중' : '새 기록'} · 합계 <b id="eSum">0</b> · 환산 <b id="eVal">0원</b></span>
-    <button class="btn" id="eCopy">↺ 전날 기록 불러오기</button>${getRec(s.key, E.job, E.d) ? '<button class="btn warn" id="eDel">이 날 기록 지우기</button>' : ''}<button class="btn pri" id="eSave">💾 저장</button></div>`;
+  <div class="savebar"><span class="st" id="eSt">${saved ? '저장된 기록을 고치는 중' : auto ? '자동 산출값' : '새 기록'} · 합계 <b id="eSum">0</b> · 환산 <b id="eVal">0원</b></span>
+    <button class="btn" id="eCopy">↺ 전날 기록 불러오기</button>${saved ? `<button class="btn warn" id="eDel">${cf.on ? '자동값으로 되돌리기' : '이 날 기록 지우기'}</button>` : ''}<button class="btn pri" id="eSave">💾 저장</button></div>`;
   renderEntryEv(); entrySum();
   box.querySelector('.jobtabs').onclick = e => { const b = e.target.closest('[data-j]'); if (b) { E.job = b.dataset.j; renderEntryMain(); } };
-  $('#eJobs').onclick = () => openSiteCfg(s.key);
+  $('#eJobs').onclick = () => openSiteCfg(s.key); $('#aHeads').onclick = () => openSiteCfg(s.key);
+  const setAuto = o => { PM.cfg[s.key] = Object.assign({}, PM.cfg[s.key], { auto: Object.assign({}, (PM.cfg[s.key] || {}).auto, o) }); savePM(); renderEntryMain(); renderEntryCal(); renderHeroStats(); };
+  $('#aOn').onchange = e => setAuto({ on: e.target.checked });
+  $('#aLvl').oninput = e => { $('#aLvlN').value = e.target.value; }; $('#aLvl').onchange = e => setAuto({ lvl: +e.target.value });
+  $('#aLvlN').onchange = e => setAuto({ lvl: Math.max(1, Math.min(100, +e.target.value || 1)) });
+  $('#eAllOn').onclick = () => { if (PM.cfg[s.key]) { PM.cfg[s.key].off = {}; savePM(); renderEntryMain(); } };
+  box.addEventListener('change', e => {
+    const id = e.target.dataset.on; if (!id) return;
+    const c = PM.cfg[s.key] = Object.assign({}, PM.cfg[s.key]); c.off = Object.assign({}, c.off);
+    if (e.target.checked) delete c.off[id]; else c.off[id] = true;
+    savePM(); renderEntryMain(); toast(e.target.checked ? `「${TASK[id].n}」 해당 업무로 다시 넣었습니다` : `「${TASK[id].n}」 — 이 사업장은 해당 없음(자동 입력·집계 제외)`);
+  });
   box.addEventListener('click', e => {
     const b = e.target.closest('.ctrl button'); if (!b) return; const inp = b.parentNode.querySelector('input'); inp.value = Math.max(0, (+inp.value || 0) + (+b.dataset.d)) || ''; inp.dispatchEvent(new Event('input', { bubbles: true }));
   });
@@ -229,8 +255,8 @@ function renderEntryMain() {
   });
   box.querySelectorAll('[data-addev]').forEach(b => b.onclick = () => openEvent(b.dataset.addev));
   $('#eSave').onclick = saveEntry;
-  $('#eCopy').onclick = () => { const p = getRec(s.key, E.job, isoD(addDays(parseD(E.d), -1))); if (!p) return toast('전날 기록이 없습니다'); E.cur.q = Object.assign({}, p.q); E.cur.a = Object.assign({}, p.a); const keep = E.cur; renderEntryMain(); E.cur.q = keep.q; E.cur.a = keep.a; $$('#eMain [data-q]').forEach(i => i.value = E.cur.q[i.dataset.q] ?? ''); $$('#eMain [data-a]').forEach(i => i.value = E.cur.a[i.dataset.a] ?? ''); entrySum(); toast('전날 수량을 불러왔습니다 — 확인 후 저장하세요'); };
-  const del = $('#eDel'); if (del) del.onclick = () => { if (!confirmBox(`${s.name} ${fmtD(E.d)} ${J.n} 기록을 지울까요?`)) return; delRec(recId(s.key, E.job, E.d)); toast('지웠습니다'); renderEntryMain(); renderEntryCal(); renderEntrySites(); renderHeroStats(); };
+  $('#eCopy').onclick = () => { const pd = isoD(addDays(parseD(E.d), -1)), p = getRec(s.key, E.job, pd) || (cf.on ? autoRec(s, E.job, pd) : null); if (!p) return toast('전날 기록이 없습니다'); E.cur.q = Object.assign({}, p.q); E.cur.a = Object.assign({}, p.a); $$('#eMain [data-q]').forEach(i => i.value = E.cur.q[i.dataset.q] ?? ''); $$('#eMain [data-a]').forEach(i => i.value = E.cur.a[i.dataset.a] ?? ''); entrySum(); toast('전날 수량을 불러왔습니다 — 확인 후 저장하세요'); };
+  const del = $('#eDel'); if (del) del.onclick = () => { if (!confirmBox(`${s.name} ${fmtD(E.d)} ${J.n} 직접 입력 기록을 지울까요?${cf.on ? '\n지우면 자동 산출값으로 돌아갑니다.' : ''}`)) return; delRec(recId(s.key, E.job, E.d)); toast(cf.on ? '자동값으로 되돌렸습니다' : '지웠습니다'); renderEntryMain(); renderEntryCal(); renderEntrySites(); renderHeroStats(); };
 }
 function entrySum() {
   const E = V.entry; let n = 0, v = 0;
@@ -241,7 +267,7 @@ function entrySum() {
 function renderEntryEv() { const E = V.entry; $('#eEv').innerHTML = E.cur.ev.length ? evListHtml(E.cur.ev.map((e, i) => Object.assign({ d: E.d, site: E.site, _i: i }, e))) : '<p class="hint">기록할 사건·작업이 없으면 비워 두세요.</p>'; $$('#eEv [data-evdel]').forEach(b => b.onclick = () => { E.cur.ev.splice(+b.dataset.evdel, 1); renderEntryEv(); }); }
 function saveEntry() {
   const E = V.entry, s = SITE[E.site];
-  const q = {}; Object.entries(E.cur.q).forEach(([k, v]) => { if (v !== '' && v != null && !isNaN(v) && +v !== 0) q[k] = +v; });
+  const q = {}; Object.entries(E.cur.q).forEach(([k, v]) => { if (v !== '' && v != null && !isNaN(v) && +v !== 0 && !isOff(s.key, k)) q[k] = +v; });
   const a = {}; Object.entries(E.cur.a).forEach(([k, v]) => { if (v !== '' && v != null && +v) a[k] = +v; });
   if (!Object.keys(q).length && !E.cur.ev.length && !$('#eNote').value.trim()) return toast('입력한 실적이 없습니다');
   putRec({ d: E.d, site: s.key, job: E.job, by: $('#eBy').value.trim(), shift: $('#eShift').value.trim(), q, a, ev: E.cur.ev, note: $('#eNote').value.trim() });
@@ -371,6 +397,7 @@ function renderReport() {
     <div class="rcard" style="--c:#C43E1C"><h3>📊 성과 발표자료 (PPT)</h3><p>르노삼성 「보안부문 업무실적」 발표 형식 — 표지 · 목차 · 당월 주요업무 성과(사건사고 예방·적발 · 순회 활동 · 산출기준) · 추이 차트 · 업무개선 · 교육훈련 · 조직활성화 · 반성 및 대책 · 익월 계획. 16:9 · 편집 가능.</p><div class="row"><button class="btn bp" data-out="pptx">⬇ PPT</button><button class="btn bf" data-out="pptpdf">⬇ PDF</button></div></div>
     <div class="rcard" style="--c:#0E7C86"><h3>🏛 전사 월간실적 및 계획 관리현황 (엑셀)</h3><p>「전사 미화현장 월간실적 및 계획 관리현황」 형식 — 조직(본부·지사)별 사업장 · 책임자 · 인원 · 보고(기록) 현황 · 업무량 · 예방 · 환산가치 · 달성률 · SPI · 등급.</p><div class="row"><button class="btn bx" data-out="orgxlsx">⬇ 관리현황 엑셀</button></div></div>
     <div class="rcard" style="--c:#1B7A34"><h3>🔍 운영실태·품질점검 결과</h3><p>2024.08.19 「전사 미화사업장 운영실태 및 품질점검 결과」 형식 — 목적 · 개요 · 사업유형별 분포 · 평점순(세부점수) · 후속조치. 사업장별 점검보고서는 「🔍 운영실태·품질점검」 탭에서.</p><div class="row"><button class="btn bw" data-out="qcdocx">⬇ 종합 Word</button><button class="btn bf" data-out="qcpdf">⬇ PDF</button><button class="btn bx" data-out="qcxlsx">⬇ 평점표</button></div></div>
+    <div class="rcard" style="--c:#E8750A"><h3>✎ 출력 전 수량 조정</h3><p>자동 산출된 업무량을 보고서에 나갈 숫자로 바로 고칩니다 — 항목별 기간 합계를 고치면 자동 산출분이 그 비율로 다시 계산되어 모든 출력물(엑셀·Word·PPT·PDF)에 반영됩니다. 성과 수준(%)도 여기서 바꿉니다.</p><div class="row"><button class="btn" data-out="adjust" style="color:#fff;background:#E8750A;border:0">✎ 수량 조정</button></div></div>
     <div class="rcard" style="--c:#7A2E8E"><h3>⬇ 한 번에</h3><p>선택 범위의 엑셀 실적표 + Word 보고 + PPT 발표자료를 차례로 만듭니다(사업장이 많으면 시간이 걸립니다).</p><div class="row"><button class="btn pri" data-out="all" style="background:linear-gradient(100deg,#1B7A34,#0B1F8A)">⬇ 3종 일괄</button></div></div>
   </div>
   <p class="hint">대상 사업장 ${sites.length}곳 중 기록이 있는 ${A.siteN}곳으로 만듭니다. Word 보고서의 머리글·바닥글은 에스텍 표준(「The Best Choice」 로고 · 쪽번호 · 제작자 서명)입니다.</p>`;
@@ -382,6 +409,7 @@ async function runOut(k) {
   const F = curF(), r = periodRange(UI.per || 'm', UI.ref || today());
   try {
     if (k === 'edit') return openPlanText(F, r);
+    if (k === 'adjust') return openAdjust();
     if (k === 'xlsx') return await outPerfXlsx(r, F);
     if (k === 'docx') return await outMonthly(r, F, 'docx');
     if (k === 'pdf') return await outMonthly(r, F, 'pdf');
@@ -445,6 +473,10 @@ function renderSet() {
       <div class="row" style="margin-top:8px"><button class="btn" id="vReset">기본값으로</button><button class="btn pri" id="vSave">💾 환산 기준 저장</button></div>
     </div></div></div>
     <div class="card" style="--c:#0B1F8A"><h2>🗂 자료 관리</h2><div class="body"><div class="rgrid">
+      <div class="rcard" style="--c:#E8750A"><h3>⚡ 자동 성과 입력(기본값)</h3><p>기록을 저장하지 않은 날을 인원·근무형태·산업·면적 기준 표준 업무량 × 성과 수준(%)으로 자동 산출합니다. 사업장마다 「일일 실적 입력」에서 따로 바꿀 수 있습니다.</p>
+        <div class="row"><label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="adOn" ${autoDef().on ? 'checked' : ''}> 모든 사업장 기본 사용</label></div>
+        <div class="row"><span style="font-size:13px">기본 성과 수준</span><input type="number" id="adLvl" min="1" max="100" value="${autoDef().lvl}" style="width:80px">%<span style="font-size:13px">시작일</span><input type="date" id="adFrom" value="${autoDef().from}" style="width:150px"></div>
+        <div class="row"><button class="btn pri" id="adSave">저장</button><button class="btn" id="adBulk" title="성과 현황 필터 범위의 사업장 성과 수준을 한꺼번에">범위 사업장 수준 일괄 적용</button></div></div>
       <div class="rcard" style="--c:#1D6F42"><h3>📥 엑셀로 한꺼번에 입력</h3><p>현장에서 쓰던 엑셀 일지를 옮길 때 — 업종별 시트(일자 · 사업장명 · 업무 항목 열) 양식을 받아 채운 뒤 불러옵니다.</p><div class="row"><button class="btn" id="dTpl">⬇ 입력 양식</button><label class="btn pri" for="dImp">⬆ 불러오기</label><input type="file" id="dImp" accept=".xlsx" hidden></div></div>
       <div class="rcard" style="--c:#0E7C86"><h3>☁ 공유 서버</h3><p>로그인하면 기록이 회사 공유 서버(pm_records)에 저장되어 본사·지사가 함께 집계합니다. <span id="shareState2"></span></p><div class="row"><button class="btn" id="dPush">⬆ 이 기기 기록 모두 올리기</button><button class="btn" id="dPull">⬇ 올해 기록 받기</button></div></div>
       <div class="rcard" style="--c:#7A2E8E"><h3>💾 백업 · 복원</h3><p>모든 기록·점검·설정을 파일 하나(.json)로 저장하거나 되돌립니다. 이 기기 사용량 약 ${nf(storeBytes() / 1024 / 1024, 1)}MB.</p><div class="row"><button class="btn" id="dExp">⬇ 백업 파일</button><label class="btn" for="dRes">⬆ 복원</label><input type="file" id="dRes" accept=".json" hidden></div></div>
@@ -461,6 +493,8 @@ function renderSet() {
   $('#dPull').onclick = async () => { const y = kstNow().getFullYear(); const n = await pullShare({ from: y + '-01-01', to: y + '-12-31' }); toast(`받은 기록 ${n}건`); renderAll(); };
   $('#dExp').onclick = () => download(new Blob([JSON.stringify(PM)], { type: 'application/json' }), `에스텍_성과관리_백업_${today()}.json`);
   $('#dRes').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (!o.recs) throw 0; if (!confirmBox('백업 파일로 바꿀까요? 지금 이 기기의 자료는 백업 내용으로 대체됩니다.')) return; PM = Object.assign({ recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {} }, o); savePM(); renderAll(); toast('복원했습니다'); } catch (x) { toast('백업 파일이 아닙니다'); } };
+  $('#adSave').onclick = () => { PM.autoDef = { on: $('#adOn').checked, lvl: Math.max(1, Math.min(100, +$('#adLvl').value || 90)), from: $('#adFrom').value || autoDef().from }; savePM(); renderHeroStats(); toast('자동 성과 입력 기본값을 저장했습니다'); };
+  $('#adBulk').onclick = () => { const lv = Math.max(1, Math.min(100, +$('#adLvl').value || 90)), list = sitesFiltered(curF()).filter(x => !curF().site || x.key === curF().site); if (!confirmBox(`성과 현황 범위(${scopeLabel(curF())}) 사업장 ${list.length}곳의 성과 수준을 ${lv}%로 바꿀까요?`)) return; list.forEach(x => { PM.cfg[x.key] = Object.assign({}, PM.cfg[x.key], { auto: Object.assign({}, (PM.cfg[x.key] || {}).auto, { lvl: lv, on: true }) }); }); savePM(); renderHeroStats(); toast(`${list.length}곳을 ${lv}%로 바꿨습니다`); };
   $('#dMan').onclick = () => openManual('user'); if ($('#dManA')) $('#dManA').onclick = () => openManual('admin');
   $('#dSeed').onclick = () => { busy(true, '예시 자료를 만드는 중…'); setTimeout(() => { const n = seedSample(); busy(false); renderAll(); toast(`예시 기록 ${nf(n)}건과 품질점검 예시(가상 사업장)를 넣었습니다`); }, 50); };
   $('#dClr').onclick = () => { if (!confirmBox('예시 자료만 지울까요? 직접 입력한 기록은 그대로 둡니다.')) return; clearSample(); renderAll(); toast('예시 자료를 지웠습니다'); };
@@ -469,24 +503,63 @@ function renderSet() {
   renderShareState(); const s2 = $('#shareState2'); if (s2) s2.textContent = $('#shareState').textContent;
 }
 function openSiteCfg(key) {
-  const s = SITE[key]; if (!s) return; const c = PM.cfg[key] || {};
+  const s = SITE[key]; if (!s) return; const c = PM.cfg[key] || {}, cf = autoCfg(key);
   const jobs = c.jobs && c.jobs.length ? c.jobs : s.jobs;
-  const rows = j => tasksFor(j, c.ind || s.ind).map(t => `<tr><td class="c"><span class="tag" style="--c:${JOBS[j].color}">${JOBS[j].s}</span></td><td>${esc(t.n)}</td><td class="c">${t.u}</td><td>${t.per === 'm' ? '' : `<input type="number" min="0" step="any" data-pd="${t.id}" value="${(c.plan || {})[t.id] ?? ''}" placeholder="${t.p || ''}" style="width:90px;text-align:right">`}</td><td><input type="number" min="0" step="any" data-pm="${t.id}" value="${(c.planM || {})[t.id] ?? ''}" placeholder="${t.pm || ''}" style="width:90px;text-align:right"></td></tr>`).join('');
-  openModal(`<h2>⚙ ${esc(s.name)} 성과 설정</h2><div class="sub">${esc(siteOrgLabel(s))} · 비운 칸은 기본값(회색 숫자)을 씁니다.</div>
-    <div class="grid2"><div class="field"><label>산업(사업 유형)</label><select id="cInd">${indOptions(c.ind || s.ind, '선택')}</select></div><div class="field"><label>관리 면적(㎡, 미화)</label><input type="number" id="cArea" value="${c.area || ''}"></div></div>
-    <div class="field"><label>운영 업종</label><div class="chips">${Object.entries(JOBS).map(([k, v]) => `<button type="button" class="chip g" data-cj="${k}" aria-pressed="${jobs.includes(k)}">${v.ic} ${v.n}</button>`).join('')}</div></div>
-    <div class="tblw" style="max-height:46vh"><table class="t" style="min-width:520px"><thead><tr><th>업종</th><th style="text-align:left">업무 항목</th><th>단위</th><th>1일 계획</th><th>월 계획</th></tr></thead><tbody id="cRows">${jobs.map(rows).join('')}</tbody></table></div>
+  const rows = j => tasksAll(j, c.ind || s.ind).map(t => `<tr class="${isOff(key, t.id) ? 'offr' : ''}"><td class="c"><input type="checkbox" data-con="${t.id}" ${isOff(key, t.id) ? '' : 'checked'} title="해당 업무"></td><td class="c"><span class="tag" style="--c:${JOBS[j].color}">${JOBS[j].s}</span></td><td>${esc(t.n)}${AUTO_MANUAL.includes(t.id) ? ' <small class="hint">(직접)</small>' : ''}</td><td class="c">${t.u}</td><td>${t.per === 'm' ? '' : `<input type="number" min="0" step="any" data-pd="${t.id}" value="${(c.plan || {})[t.id] ?? ''}" placeholder="${t.p || ''}" style="width:80px;text-align:right">`}</td><td><input type="number" min="0" step="any" data-pm="${t.id}" value="${(c.planM || {})[t.id] ?? ''}" placeholder="${t.pm || ''}" style="width:80px;text-align:right"></td></tr>`).join('');
+  openModal(`<h2>⚙ ${esc(s.name)} 성과 설정</h2><div class="sub">${esc(siteOrgLabel(s))} · 비운 칸은 기본값(회색 숫자)을 씁니다. 인원·근무형태·면적은 자동 업무량 계산의 기준입니다.</div>
+    <div class="grid2"><div class="field"><label>산업(사업 유형)</label><select id="cInd">${indOptions(c.ind || s.ind, '선택')}</select></div><div class="field"><label>근무형태</label><input id="cShift" value="${esc(c.shift || s.shift || '')}" placeholder="예: 격일제, 3조2교대, 주간"></div></div>
+    <div class="field"><label>운영 업종 · 업종별 인원(명)</label><div class="chips">${Object.entries(JOBS).map(([k, v]) => `<span class="chip" style="display:inline-flex;gap:6px;align-items:center"><button type="button" class="chip g" data-cj="${k}" aria-pressed="${jobs.includes(k)}" style="border:0;padding:2px 6px">${v.ic} ${v.n}</button><input type="number" min="0" data-hc="${k}" value="${(c.heads || {})[k] ?? ''}" placeholder="${jobs.includes(k) ? siteHeads(s, k) : ''}" style="width:58px;padding:4px 6px">명</span>`).join('')}</div></div>
+    <div class="grid2"><div class="field"><label>관리 면적(㎡, 미화 일상 청소 기준)</label><input type="number" id="cArea" value="${c.area || ''}" placeholder="비우면 인원 × 800㎡"></div>
+    <div class="field"><label>자동 성과 입력 · 성과 수준</label><div class="row"><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="cAuto" ${cf.on ? 'checked' : ''}> 사용</label><input type="number" id="cLvl" min="1" max="100" value="${cf.lvl}" style="width:80px">%</div></div></div>
+    <div class="tblw" style="max-height:44vh"><table class="t" style="min-width:560px"><thead><tr><th>해당</th><th>업종</th><th style="text-align:left">업무 항목</th><th>단위</th><th>1일 계획</th><th>월 계획</th></tr></thead><tbody>${jobs.map(rows).join('')}</tbody></table></div>
+    <p class="hint">「해당」을 끈 업무는 이 사업장 입력 화면에서 흐리게 바뀌고 자동 입력·집계·보고서에서 빠집니다. 「(직접)」 항목은 실제로 일어난 일만 직접 입력합니다.</p>
     <div class="mrow"><button class="btn" id="mClose">취소</button><button class="btn pri" id="cOk">저장</button></div>`, md => {
     md.querySelector('#mClose').onclick = closeModal;
     md.querySelectorAll('[data-cj]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')));
     md.querySelector('#cOk').onclick = () => {
-      const nc = { ind: md.querySelector('#cInd').value, area: +md.querySelector('#cArea').value || 0, jobs: [...md.querySelectorAll('[data-cj][aria-pressed="true"]')].map(b => b.dataset.cj), plan: Object.assign({}, c.plan), planM: Object.assign({}, c.planM) };
+      const nc = Object.assign({}, c, { ind: md.querySelector('#cInd').value, shift: md.querySelector('#cShift').value.trim(), area: +md.querySelector('#cArea').value || 0, jobs: [...md.querySelectorAll('[data-cj][aria-pressed="true"]')].map(b => b.dataset.cj), plan: Object.assign({}, c.plan), planM: Object.assign({}, c.planM), heads: {}, off: Object.assign({}, c.off), auto: Object.assign({}, c.auto, { on: md.querySelector('#cAuto').checked, lvl: Math.max(1, Math.min(100, +md.querySelector('#cLvl').value || 90)) }) });
       if (!nc.jobs.length) return toast('업종을 하나 이상 고르세요');
+      md.querySelectorAll('[data-hc]').forEach(i => { if (i.value !== '') nc.heads[i.dataset.hc] = +i.value; });
       md.querySelectorAll('[data-pd]').forEach(i => { if (i.value === '') delete nc.plan[i.dataset.pd]; else nc.plan[i.dataset.pd] = +i.value; });
       md.querySelectorAll('[data-pm]').forEach(i => { if (i.value === '') delete nc.planM[i.dataset.pm]; else nc.planM[i.dataset.pm] = +i.value; });
-      PM.cfg[key] = nc; savePM(); buildSites(); closeModal(); toast('사업장 설정을 저장했습니다'); setTab(UI.tab);
+      md.querySelectorAll('[data-con]').forEach(i => { if (i.checked) delete nc.off[i.dataset.con]; else nc.off[i.dataset.con] = true; });
+      PM.cfg[key] = nc; savePM(); buildSites(); closeModal(); toast('사업장 설정을 저장했습니다'); setTab(UI.tab); renderHeroStats();
     };
   }, true);
+}
+/* ✎ 출력 전 수량 조정 — 기간 합계를 고치면 자동 산출분을 그 비율로 다시 계산 */
+function openAdjust(siteKey) {
+  const F = curF(), r = periodRange(UI.per || 'm', UI.ref || today());
+  const key = siteKey || F.site || V.entry.site || (sitesFiltered(F)[0] || {}).key, s = SITE[key];
+  if (!s) return toast('사업장을 먼저 고르세요');
+  const job = F.job && s.jobs.includes(F.job) ? F.job : '';
+  const A = aggregate(r, { site: key, job }), man = aggregate(r, { site: key, job }), cf = autoCfg(key);
+  const manOnly = {}; A.recs.filter(x => !x.auto).forEach(x => Object.entries(x.q || {}).forEach(([k, v]) => manOnly[k] = (manOnly[k] || 0) + (+v || 0)));
+  const jobs = job ? [job] : s.jobs;
+  const rows = jobs.map(j => tasksFor(j, s.ind, key).filter(t => t.k !== 'amt' && t.k !== 'score' && t.k !== 'avg').map(t => { const T = A.tasks[t.id] || { act: 0 }; return `<tr><td class="c"><span class="tag" style="--c:${JOBS[j].color}">${JOBS[j].s}</span></td><td>${esc(t.n)}${AUTO_MANUAL.includes(t.id) ? ' <small class="hint">(직접)</small>' : ''}</td><td class="c">${t.u}</td><td class="n">${nf(manOnly[t.id] || 0)}</td><td class="n">${nf(T.act)}</td><td><input type="number" min="0" step="1" data-adj="${t.id}" data-job="${j}" data-cur="${T.act}" value="${T.act}" style="width:110px;text-align:right" ${AUTO_MANUAL.includes(t.id) ? 'disabled' : ''}></td></tr>`; }).join('')).join('');
+  openModal(`<h2>✎ 출력 전 수량 조정</h2><div class="sub">${esc(s.name)} · ${esc(r.label)} — 「보고서에 나갈 합계」를 고치고 저장하면 이 기간의 자동 산출분이 그 비율로 다시 계산됩니다(직접 입력한 날은 그대로). 모든 출력물에 반영됩니다.</div>
+    <div class="row" style="margin-bottom:8px"><select id="ajSite" style="max-width:360px">${sitesFiltered({ org: F.org, br: F.br }).map(x => `<option value="${x.key}" ${x.key === key ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select>
+      <span style="font-size:13px">성과 수준</span><input type="number" id="ajLvl" min="1" max="100" value="${cf.lvl}" style="width:80px">% <button class="btn sm" id="ajLvlGo">수준 적용</button><button class="btn sm warn" id="ajReset">이 기간 조정 지우기</button></div>
+    <div class="tblw" style="max-height:52vh"><table class="t" style="min-width:600px"><thead><tr><th>업종</th><th style="text-align:left">업무 항목</th><th>단위</th><th>직접 입력분</th><th>현재 합계</th><th>보고서에 나갈 합계</th></tr></thead><tbody>${rows || '<tr><td colspan="6" class="empty">항목이 없습니다</td></tr>'}</tbody></table></div>
+    <p class="hint">${A.autoN ? `이 기간 자동 산출 ${A.autoN}건 · 직접 입력 ${A.manN}건(업종·일 단위).` : '이 기간에 자동 산출된 날이 없습니다(모두 직접 입력) — 직접 입력한 날의 수량은 「일일 실적 입력」에서 고치세요.'} 결과는 날짜별 반올림 때문에 1~2 차이가 날 수 있습니다.</p>
+    <div class="mrow"><button class="btn" id="mClose">닫기</button><button class="btn pri" id="ajOk">💾 저장(보고서에 반영)</button></div>`, md => {
+    md.querySelector('#mClose').onclick = closeModal;
+    md.querySelector('#ajSite').onchange = e => openAdjust(e.target.value);
+    md.querySelector('#ajLvlGo').onclick = () => { PM.cfg[key] = Object.assign({}, PM.cfg[key], { auto: Object.assign({}, (PM.cfg[key] || {}).auto, { on: true, lvl: Math.max(1, Math.min(100, +md.querySelector('#ajLvl').value || 90)) }) }); savePM(); openAdjust(key); renderHeroStats(); };
+    md.querySelector('#ajReset').onclick = () => { PM.adj[key] = (PM.adj[key] || []).filter(x => !(x.from === r.from && x.to === r.to)); savePM(); openAdjust(key); toast('이 기간 조정을 지웠습니다'); };
+    md.querySelector('#ajOk').onclick = () => {
+      PM.adj = PM.adj || {}; const list = PM.adj[key] = (PM.adj[key] || []).slice(); let n = 0;
+      md.querySelectorAll('[data-adj]').forEach(inp => {
+        const id = inp.dataset.adj, j = inp.dataset.job, want = +inp.value, cur = +inp.dataset.cur; if (inp.disabled || inp.value === '' || want === cur) return;
+        const autoDays = A.recs.filter(x => x.auto && x.job === j), autoSum = autoDays.reduce((a, x) => a + (+(x.q[id] || 0)), 0), target = Math.max(0, want - (manOnly[id] || 0));
+        const prev = list.find(x => x.from === r.from && x.to === r.to && x.job === j && x.t === id);
+        let f = prev ? prev.f : 1, a = prev ? prev.a || 0 : 0;
+        if (autoSum > 0) f = f * target / autoSum; else if (autoDays.length) { a = a + target / autoDays.length; } else return;
+        const idx = list.indexOf(prev); const e = { from: r.from, to: r.to, job: j, t: id, f, a }; if (idx >= 0) list[idx] = e; else list.push(e); n++;
+      });
+      savePM(); closeModal(); toast(n ? `${n}개 항목을 조정했습니다 — 보고서에 반영됩니다` : '바뀐 항목이 없습니다'); if (UI.tab === 'dash') renderDash(); else setTab(UI.tab); renderHeroStats();
+    };
+  }, 2);
 }
 function openAddSite(done) {
   openModal(`<h2>＋ 사업장 추가</h2><div class="sub">목록에 없는 사업장(신규 계약·그룹사 현장)을 추가합니다.</div>

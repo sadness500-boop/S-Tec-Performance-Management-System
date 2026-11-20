@@ -263,3 +263,27 @@ const QC_SAMPLE = [
   ['ace', '예시 순환선', 'metro', 77, 88, 95, 75], ['safe', '예시 은빛공장', 'mfg', 84, 85, 82, 74], ['first', '예시 새빛병원', 'hosp', null, 79, 87, 85, '예시 — 의료기관 인증평가로 행정서류 고객사 이관(서류평점 미반영)'],
   ['ace', '예시 별빛대학교', 'univ', 95, 95, 93, 68], ['ace', '예시 달빛대학교', 'univ', 82, 81, 93, 70]
 ];
+
+/* =====================================================================
+ * 자동 성과 입력(1~100%) — 표준 업무량 기준
+ *  · 사업장 인원(업종별) × 근무형태(그날 근무 인원) × 산업 보정 × 성과 수준(%) = 그날 자동 업무량
+ *  · 계획량이 있는 항목(순찰 6회 등)은 「계획 × 성과 수준」 · 월 계획(교육 시간)은 매월 15일에
+ *  · 실제로 일어난 일만 적어야 하는 항목(무단침입·응급환자·누수·습득물 등)은 자동 입력하지 않음
+ * N: 그날 근무자 1명당 1일 표준량 · F: 사업장 1일 고정량 · W: 주 1회(요일 0~6) · M: 월 1회(일자)
+ * ===================================================================== */
+const AUTO_N = {
+  s_ppl: 110, s_car: 40, s_weigh: 12, s_light: 18, s_pc: 2.5, s_copier: .25, s_ac: .8, s_lock: 1.2, s_card: .6, s_phone: 4, s_parkviol: .5, s_loiter: .02, s_visit: 7, s_tour: .3, s_req: .3, s_imp: .01,
+  c_area: 800, c_toilet: 6, c_trash: 25, c_recycle: 9, c_ev: .8, c_stair: 1.5, c_outside: .3, c_mach: 4, c_wax: .6, c_carpet: .8, c_glass: 2, c_weed: .8, c_disinf: .4, c_medwaste: .6, c_slip: .05, c_req: .12, c_imp: .01,
+  f_elec: 1.5, f_mech: 1.5, f_firechk: .6, f_ev: .08, f_water: 1, f_pm: .35, f_legal: .01, f_req: .6,
+  p_in: 140, p_out: 138, p_guide: 25, p_viol: .7, p_season: .3, p_cs: 1.5, p_imp: .01,
+  i_visit: 35, i_call: 22, i_meet: 2.5, i_vip: .06, i_parcel: 8, i_cs: .25, i_imp: .01
+};
+const AUTO_F = { s_cctv: 'cctv' };                              // 24시간 근무면 24시간, 아니면 10시간
+const AUTO_W = { c_msds: 1, c_selfqc: 5 };                       // 월요일 MSDS 점검 · 금요일 자체 품질평가
+const AUTO_M = { s_drill: 20, f_gen: 5, f_drill: 20 };           // 매월 그 날 1회
+const AUTO_MANUAL = ['s_leak', 's_fire', 's_intrude', 's_export', 's_exerr', 's_infosec', 's_lost', 's_emerg', 's_violence', 's_facil', 's_report',
+  'c_spill', 'c_snow', 'f_fault', 'f_resp', 'f_repair', 'f_energy', 'p_acc', 'p_fee', 'i_lost'];
+/* 산업 보정(출입·방문 흐름) · 주말 근무 비율(주간 근무 업종) */
+const AUTO_IND = { hosp: 1.6, univ: 1.4, mfg: 1.2, logi: 1.3, office: 1, mixed: 1.3, apt: .5, hotel: 1.2, metro: 1.8, pub: 1.1, energy: .9, embassy: .4 };
+const AUTO_WEEKEND = { hosp: .7, hotel: .9, metro: .8, mixed: .8, mfg: .4, logi: .5, apt: .5, energy: .5, univ: .3, office: .2, pub: .2, embassy: .3 };
+const AUTO_FLOW = ['s_ppl', 's_car', 's_visit', 's_tour', 'p_in', 'p_out', 'p_guide', 'i_visit', 'i_call', 'c_toilet', 'c_trash'];

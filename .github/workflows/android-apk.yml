@@ -97,6 +97,11 @@ jobs:
             releases/S-Tec-Performance-Management-System_v${{ steps.ver.outputs.v }}.html
           make_latest: false
 
+      - name: app-latest 태그를 이번 빌드로 옮기기
+        run: |
+          git tag -f app-latest HEAD
+          git push -f origin refs/tags/app-latest
+
       - name: 최신판 릴리스 (QR 다운로드 주소)
         uses: softprops/action-gh-release@v2
         with:
