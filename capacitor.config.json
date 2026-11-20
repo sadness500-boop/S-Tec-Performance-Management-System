@@ -1,0 +1,12 @@
+{
+  "appId": "kr.stecbest.performance",
+  "appName": "성과 관리",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "sadness500-boop.github.io"
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}
