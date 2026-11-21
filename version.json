@@ -1,7 +1,7 @@
 {
-  "version": "1.1.1",
-  "date": "2026-11-20",
-  "note": "메인화면 디오라마를 애니메이션(원본 GIF)으로 교체 — 통합 출입관리 시스템과 같은 배치",
-  "html": "releases/S-Tec-Performance-Management-System_v1.1.1.html",
-  "apk": "releases/S-Tec-Performance-Management-System_v1.1.1.apk"
+  "version": "1.1.2",
+  "date": "2026-11-22",
+  "note": "제작자 관리매뉴얼을 공개 파일에서 빼고 서버 비공개 보관함으로 — 제작자만 보기 · 내려받기 · 통합관리시스템 공통 상단 버튼",
+  "html": "releases/S-Tec-Performance-Management-System_v1.1.2.html",
+  "apk": "releases/S-Tec-Performance-Management-System_v1.1.2.apk"
 }

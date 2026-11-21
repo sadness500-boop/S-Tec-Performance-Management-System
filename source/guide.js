@@ -53,51 +53,22 @@ const MANUAL = {
         { table: { head: ['질문', '답'], rows: [['기록은 어디에 저장되나요?', '이 기기에 바로 저장되고, 로그인하면 내 계정과 회사 공유 서버에도 저장됩니다.'], ['다른 사람 기록도 보이나요?', '일반 사용자는 자기 기록과, 관리자가 지정한 담당 지사 기록만 봅니다. 제작자·관리자는 전체를 봅니다.'], ['환산가치 기준을 바꿀 수 있나요?', '「⚙ 설정 › 가치 환산 기준」에서 바꿉니다. 「추정」 값은 고객사와 협의한 값으로 바꿔 쓰세요.'], ['같은 날을 두 번 입력했어요', '같은 사업장·같은 날·같은 업종은 한 장이라 마지막 저장이 남습니다.'], ['보고서에 사진이 안 나와요', '사건·작업을 추가할 때 사진을 넣었는지, 추가 후 「💾 저장」을 눌렀는지 확인하세요.'], ['휴대폰을 잃어버렸어요', '바로 관리자에게 알리세요. 그 기기만 차단합니다.']] } }] }
     ]
   },
-  admin: {
-    title: '제작자 관리매뉴얼', en: 'Administrator Guide', file: '에스텍_성과관리시스템_제작자관리매뉴얼',
-    sub: '권한 · 서버 · 기준값 · SPI · 품질점검 운영 · 배포 · 보안',
-    sections: [
-      { h: '역할과 관리 구조', key: ['통합 로그인 — 10개 프로그램 같은 서버', '제작자 · 관리자 · 사용자', '권한은 통합관리 시스템 관리 콘솔에서', '프로그램 코드 stpm'], img: 'm_launch', blocks: [
-        { p: '성과 관리 시스템은 통합관리 시스템의 10번째 프로그램(코드 stpm)입니다. 계정 · 가입 승인 · 사용기한 · 기기 · 접속기록은 통합관리 시스템 「🛡️ 제작자 관리 콘솔」에서 한 번에 관리하며, 여기서 바꾼 내용은 10개 프로그램에 함께 적용됩니다.' },
-        { table: { head: ['역할', '성과 관리 시스템에서'], rows: [['제작자(owner)', '모든 기능 · 공유 서버 전체 기록 보기 · 다른 사람 기록 수정/삭제'], ['관리자(admin)', '모든 기능 · 공유 서버 전체 기록 보기'], ['사용자(user)', '「프로그램별 권한」에서 stpm 「사용」을 받아야 실행 · 자기 기록 + 지정된 담당 지사 기록']] } }] },
-      { h: 'Supabase 서버 준비 (완료)', key: ['server/supabase_stpm.sql', '프로그램 등록부 10번째(sort 100)', '공유 성과 기록 pm_records', '다시 실행해도 안전'], blocks: [
-        { p: '통합 로그인 Supabase 프로젝트(mnsuebexlzhvomxhrear)에 2026-11-20 실행 완료했습니다. 프로그램을 새로 설치하거나 서버를 옮길 때만 SQL Editor에 다시 붙여넣고 Run 하면 됩니다(기존 자료는 지우지 않음).' },
-        { table: { head: ['만드는 것', '내용'], rows: [['program_registry: stpm', '통합관리 시스템 메인 화면 10번째(맨 아래) 카드'], ['app_access', 'stpm 권한을 지정할 수 있게 허용목록 제한 해제'], ['pm_records 표', '현장 일일 기록(사업장키|업종|일자) — 표 직접 접근 차단(RLS), 함수로만 읽고 씀'], ['pm_put', '기록 올리기 — 자기 기록만 고침(관리자는 전체)'], ['pm_list', '기간 기록 받기 — 사용자: 자기 기록 + 담당 지사 / 관리자: 전체'], ['pm_delete', '삭제 — 자기 기록만(관리자는 전체)']] } },
-        { tip: '확인 방법: SQL Editor에서 select code, name, sort from program_registry order by sort; → 마지막 줄이 stpm · 성과 관리 시스템 · 100' }] },
-      { h: '프로그램별 권한 주기', key: ['통합관리 시스템 → 🛡️ 관리 콘솔', '🔐 프로그램별 권한 → 「성과 관리」 칸', '사용 · 사용기한 · 담당 지사', '담당 지사 = 공유 기록 조회 범위'], blocks: [
-        { ol: ['통합관리 시스템 메인 → 「🛡️ 제작자 관리 콘솔」.', '「🔐 프로그램별 권한」 탭에서 사람 × 프로그램 표의 「성과 관리」 칸을 누릅니다.', '「사용」으로 바꾸고, 필요하면 사용기한과 담당 지사(동부·서부·남부·중부)를 지정합니다.', '담당 지사를 지정한 사용자는 그 지사 사업장의 공유 기록을 「☁ 서버 기록 받기」로 함께 집계합니다.'] },
-        { warn: '현장 반장·소장에게는 담당 지사를 비워 두면(자기 기록만) 다른 사업장 기록이 보이지 않습니다. 지사 담당·본사 담당에게만 지사를 지정하세요.' }] },
-      { h: '사업장 성과 설정 · 계획량', key: ['산업 → 업무 항목·품질 구역 결정', '업종 → 입력 탭', '1일 계획 · 월 계획 → 달성률', '계약서 과업지시서와 맞추기'], img: 'm_sitecfg', blocks: [
-        { p: '계획량이 없는 항목은 실적만 집계되고 달성률·SPI의 「계획 달성」에 들어가지 않습니다. 과업지시서·고객사 요구 기준(예: 순찰 1일 6회, 직무교육 월 2시간, 화장실 점검 1일 48회)을 사업장별로 넣어 두세요.' },
-        { table: { head: ['업종', '권장 계획 예'], rows: [['보안', '정기 순찰 1일 6회 · CCTV 관제 1일 24시간 · 직무교육 월 2시간(경비업법)'], ['미화', '화장실 점검 1일 48회 · 일상 청소 면적 · 산업안전보건교육 월 2시간'], ['시설', '일상 순회점검 1일 2회 · 에너지 검침 1일 1회 · 교육 월 2시간'], ['주차', '주차장 순찰 1일 4회 · 교육 월 2시간']] } }] },
-      { h: '자동 성과 입력 기준(표준 업무량)', key: ['기본값: 사용 · 성과 수준 90% · 1월 1일부터', '근무자 1명당 1일 표준량 × 그날 근무 인원', '산업 보정 · 주말 비율', '출력 전 수량 조정(기간·항목별)'], blocks: [
-        { p: '「⚙ 사업장·기준 설정 › ⚡ 자동 성과 입력(기본값)」에서 전체 사용 여부·기본 성과 수준·시작일을 정하고, 성과 현황 필터 범위의 사업장 수준을 한꺼번에 바꿀 수 있습니다. 계약일(사업장 목록 since) 이전은 산출하지 않습니다.' },
-        { table: { head: ['항목', '근무자 1명당 1일 표준량'], rows: Object.entries(AUTO_N).slice(0, 24).map(([k, v]) => [JOBS[TASK[k].job].s + ' · ' + TASK[k].n, nf(v, 2) + ' ' + TASK[k].u]) } },
-        { tip: '「✎ 출력 전 수량 조정」은 기간·항목별 배율로 저장됩니다(자동 산출분에만 적용, 직접 입력분 유지). 같은 기간을 다시 조정하면 덮어쓰고, 「이 기간 조정 지우기」로 되돌립니다.' },
-        { warn: '자동 산출은 표준 업무량 기반 추정입니다. 고객사 대외 보고 전 현장 소장 확인을 거치고, 보고서의 「자동 산출」 표기를 지우지 마세요.' }] },
-      { h: '가치 환산 기준 관리', key: ['1단위 환산가치(원)', '르노삼성 산출기준(보안 절전)', '「추정」 값은 협의 후 교체', '협의값은 보고서에 「고객사 협의값」 표시'], blocks: [
-        { table: { head: ['항목', '기본값', '근거'], rows: Object.values(TASK).filter(t => t.v).map(t => [JOBS[t.job].s + ' · ' + t.n, nf(t.v) + '원/' + t.u, t.b || '']) } },
-        { warn: '「추정」 표시 값은 시중 단가를 바탕으로 한 예시입니다. 대외 보고 전에 고객사 담당과 협의해 「⚙ 설정 › 가치 환산 기준」에서 바꾸세요. 예방 건수(시건·누수 등)는 기본 0원이며, 고객사와 합의한 기대손실액을 넣으면 금액으로 환산됩니다.' }] },
-      { h: 'SPI 산식과 등급', key: ['달성 35 · 품질 25 · 안전 20', '개선 10 · 교육 10', '없는 요소는 빼고 다시 비율 계산', 'S·A·B·C 등급'], blocks: [
-        { table: { head: ['요소', '가중치', '계산'], rows: [['계획 달성', '35%', '계획량 있는 항목: Σmin(실적,계획) ÷ Σ계획'], ['품질', '25%', '운영실태·품질점검(당해 연도)과 자체 품질평가 평균'], ['안전', '20%', '사건사고 중 조치 완료 비율(사건 0건이면 100)'], ['업무개선', '10%', '개선·주요 작업 건수 ÷ (사업장당 월 2건)'], ['교육', '10%', '교육 계획(월 시간) 대비 이수']] } },
-        { p: '기록이 없는 요소는 빼고 나머지 가중치로 다시 나눕니다. 등급: 90점 이상 S(우수) · 80점 이상 A(양호) · 70점 이상 B(보통) · 70점 미만 C(미흡).' }] },
-      { h: '자료 흐름 · 공유 서버', key: ['① 이 기기 저장', '② 계정 동기화(user_data)', '③ 공유 서버(pm_records)', '본사·지사 집계'], blocks: [
-        { table: { head: ['단계', '저장 위치', '누가 보나'], rows: [['① 이 기기', '브라우저 저장소(stec_pm_data)', '그 기기'], ['② 계정 동기화', 'Supabase user_data', '같은 아이디로 로그인한 기기'], ['③ 공유 서버', 'Supabase pm_records(일일 기록)', '본인 · 담당 지사 사용자 · 관리자']] } },
-        { p: '저장할 때마다 2.5초 뒤 공유 서버로 자동 업로드합니다. 화면 맨 아래 「☁ 공유 서버」 표시로 상태를 봅니다. 예전 기록을 한꺼번에 올리려면 「⚙ 설정 › ⬆ 이 기기 기록 모두 올리기」.' },
-        { tip: '운영실태·품질점검 기록은 계정 동기화(②)로 저장됩니다. 전사 종합보고는 점검을 입력한 담당(본사 미화지원팀 등) 계정에서 만드세요.' }] },
-      { h: '운영실태 · 품질점검 운영', key: ['연 1~2회 정기 점검', '점검제외 = 0점 반영', '사업장 보고서 배포', '미수검 사업장 관리'], blocks: [
-        { ol: ['상반기 점검 계획 수립(대상 · 일정 · 점검자).', '현장 점검 — 태블릿·휴대폰으로 바로 입력, 사진은 사건·작업 기록으로 첨부.', '사업장별 점검보고서(Word·PDF)를 지사장에게 배포.', '전사 종합 결과보고(Word·PDF)와 평점표(엑셀)로 대표이사 보고.', '70점 미만 사업장은 후속조치 계획과 재점검 일정을 잡습니다.'] },
-        { warn: '실제 고객사 점검 점수·사업장 평가는 공개 저장소(GitHub) 파일에 넣지 마세요. 프로그램 안에서 로그인 상태로 입력하면 계정 서버에만 저장됩니다.' }] },
-      { h: '업데이트 · 배포', key: ['source/ 수정 → build.py', 'version.json 버전 올리기', 'GitHub Actions가 APK 자동 빌드', 'GitHub Pages가 웹 자동 배포'], blocks: [
-        { table: { head: ['순서', '할 일'], rows: [['1', 'source/ 의 kb.js(업무 항목) · views.js(화면) · out.js(보고서) 등 수정'], ['2', 'python3 source/build.py → index.html 한 파일 생성'], ['3', 'version.json · package.json · index.html APP.version 버전 올리기'], ['4', 'main 브랜치에 올리기 → Actions 「Android APK」 약 5분 → releases/ · 릴리스 app-latest'], ['5', 'GitHub Pages(main / root)가 웹 주소에 자동 반영']] } },
-        { p: '저장소: https://github.com/sadness500-boop/S-Tec-Performance-Management-System · 서명 키: android-keystore/stpm-debug.keystore(같은 키로 덮어 설치 가능)' }] },
-      { h: '보안 · 개인정보 수칙', key: ['공개 저장소에 실데이터 금지', '사진에 얼굴·개인정보 주의', '공용 PC 로그아웃', '분실 기기 즉시 차단'], blocks: [
-        { ul: ['저장소는 공개(Public)입니다 — 실제 고객사 점수, 근무자 개인정보, 연락처는 코드·예시 자료에 넣지 않습니다.', '사건사고 기록의 인적사항(주민번호 등)은 적지 않습니다 — 「근무자」「방문객」 등으로 표기.', '사진은 얼굴·차량번호가 드러나지 않게 촬영하거나 가립니다.', '기기 분실·퇴사자는 통합관리 시스템 관리 콘솔에서 기기 차단·계정 차단.'] }] },
-      { h: '문제 해결', key: ['공유 서버 「준비 전」', '보고서가 비어 있음', '영상이 안 나옴', '앱이 예전 화면'], blocks: [
-        { table: { head: ['증상', '원인 · 조치'], rows: [['☁ 공유 서버: 준비 전', 'server/supabase_stpm.sql 미실행 또는 다른 프로젝트 — SQL 재실행'], ['보고서 「기록된 실적이 없습니다」', '기간·조직·업종·사업장 범위 확인, 「☁ 서버 기록 받기」'], ['영상이 재생되지 않음', '인터넷 연결 확인(영상은 웹 주소에서 불러옴), 파일로 연 HTML은 웹 주소 영상 사용'], ['통합관리 메인에 카드가 없음', '프로그램 등록부 stpm 확인, 「프로그램별 권한」 사용 지정'], ['앱이 예전 화면', '웹은 새로고침, 앱은 APK 최신판 재설치(stpm-latest.apk)']] } }] }
-    ]
-  }
+  /* 제작자 관리매뉴얼은 공개 파일에 넣지 않습니다 — 서버의 제작자 전용 보관함(owner-docs)에서 제작자 계정에게만 불러옵니다 */
+  admin: null
 };
+
+/* ---------- 제작자 관리매뉴얼 — 제작자만 (서버 비공개 보관함 owner-docs/stpm/admin-guide.json) ---------- */
+function isOwnerUser() { const p = window.STPM_AUTH && STPM_AUTH.profile; return !!(p && p.role === 'owner'); }
+async function loadOwnerManual() {
+  if (MANUAL.admin) return true;
+  if (!isOwnerUser()) { toast('제작자 관리매뉴얼은 제작자만 볼 수 있습니다'); return false; }
+  try {
+    const c = window.STPM_AUTH && STPM_AUTH.client; if (!c || !c.storage) throw new Error('로그인이 필요합니다');
+    const { data, error } = await c.storage.from('owner-docs').download('stpm/admin-guide.json');
+    if (error || !data) throw new Error((error && error.message) || '없음');
+    MANUAL.admin = JSON.parse(await data.text()); return true;
+  } catch (e) { toast('제작자 관리매뉴얼을 불러오지 못했습니다: ' + (e.message || e)); return false; }
+}
 
 /* ---------- 매뉴얼 화면 사진 (media/manual/*.jpg — 없으면 사진 없이) ---------- */
 const MAN_IMG = {};
@@ -157,6 +128,7 @@ function manualSlides(kind) {
   return S;
 }
 async function outManual(kind, fmt) {
+  if (kind === 'admin' && !(await loadOwnerManual())) return;
   busy(true, `${MANUAL[kind].title} 만드는 중…`);
   try {
     await manualImgs(kind);
@@ -170,12 +142,13 @@ async function outManual(kind, fmt) {
   } catch (e) { console.error(e); toast('만들지 못했습니다: ' + (e.message || e), 5000); } finally { busy(false); }
 }
 /* ---------- 프로그램 안 매뉴얼 창 ---------- */
-function openManual(kind) {
+async function openManual(kind) {
+  if (kind === 'admin' && !(await loadOwnerManual())) return;
   const M = MANUAL[kind];
   const html = M.sections.map((s, i) => `<section id="man${i}" style="margin-bottom:18px"><h3 style="margin:0 0 6px;color:var(--nv)">${i + 1}. ${esc(s.h)}</h3><ul class="hl" style="margin-bottom:8px">${s.key.map(k => `<li>${esc(k)}</li>`).join('')}</ul>
     ${s.blocks.map(b => b.p ? `<p style="font-size:13.5px">${esc(b.p)}</p>` : b.ol ? `<ol style="font-size:13.5px;padding-left:20px">${b.ol.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : b.ul ? `<ul style="font-size:13.5px;padding-left:20px">${b.ul.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : b.table ? `<div class="tblw" style="margin:6px 0"><table class="t" style="min-width:0"><thead><tr>${b.table.head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${b.table.rows.map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : b.tip ? `<p class="spiform">💡 ${esc(b.tip)}</p>` : b.warn ? `<p class="spiform" style="background:#FFF4E5">⚠ ${esc(b.warn)}</p>` : '').join('')}</section>`).join('');
   openModal(`<h2>📘 ${esc(M.title)} <small class="hint">${esc(M.en)} · ${APP.version}</small></h2><div class="sub">${esc(M.sub)}</div>
-    <div class="row" style="margin-bottom:10px">${kind === 'user' ? (isAdminUser() ? '<button class="btn sm" id="mnOther">🛡️ 제작자 관리매뉴얼</button>' : '') : '<button class="btn sm" id="mnOther">👤 사용자 매뉴얼</button>'}<button class="btn sm bw" style="color:#fff;border:0" data-mf="docx">⬇ Word</button><button class="btn sm bp" style="color:#fff;border:0" data-mf="pptx">⬇ PPT</button><button class="btn sm bf" style="color:#fff;border:0" data-mf="pdf">⬇ PDF</button></div>
+    <div class="row" style="margin-bottom:10px">${kind === 'user' ? (isOwnerUser() ? '<button class="btn sm" id="mnOther">🛡️ 제작자 관리매뉴얼</button>' : '') : '<button class="btn sm" id="mnOther">👤 사용자 매뉴얼</button>'}<button class="btn sm bw" style="color:#fff;border:0" data-mf="docx">⬇ Word</button><button class="btn sm bp" style="color:#fff;border:0" data-mf="pptx">⬇ PPT</button><button class="btn sm bf" style="color:#fff;border:0" data-mf="pdf">⬇ PDF</button></div>
     <div class="row" style="margin-bottom:10px">${M.sections.map((s, i) => `<a class="chip" href="#man${i}">${i + 1}. ${esc(s.h)}</a>`).join('')}</div>
     <div style="max-height:62vh;overflow:auto;padding-right:6px">${html}</div>
     <div class="mrow"><a class="btn" href="${APP.repo}#readme" target="_blank" rel="noopener">GitHub 안내</a><button class="btn pri" id="mClose">닫기</button></div>`, md => {
