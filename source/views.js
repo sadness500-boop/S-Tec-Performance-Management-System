@@ -614,7 +614,7 @@ async function buildSignature(date) {
   } catch (e) { V.sig = ASSET.sigBase; V.sigPx = 1860; }
 }
 async function init() {
-  $('#appIcon').src = ASSET.icon; $('#gateLogo').src = ASSET.icon; $('#heroImg').src = ASSET.hero; $('#mainIc').src = ASSET.icon;
+  $('#appIcon').src = ASSET.icon; $('#gateLogo').src = ASSET.icon; $('#heroImg').src = ASSET.heroAnim || ASSET.hero; $('#mainIc').src = ASSET.icon;
   $('#ver').textContent = APP.version;
   $('#mgrCard').onclick = openMgr; $('#qrCard').onclick = openQR; $('#refCard').onclick = openRef; $('#btnGuide').onclick = e => { e.preventDefault(); openGuide(); };
   $$('[data-theme-set]').forEach(b => b.onclick = () => applyTheme(b.dataset.themeSet));

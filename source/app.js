@@ -9,7 +9,7 @@ const APP = {
   name: 'S-Tec Performance Management System',
   ko: '에스텍 성과 관리 시스템',
   code: 'stpm',
-  version: 'v1.1.0',
+  version: 'v1.1.1',
   build: '2026-11-20',
   shareUrl: 'https://sadness500-boop.github.io/S-Tec-Performance-Management-System/',
   apkUrl: 'https://github.com/sadness500-boop/S-Tec-Performance-Management-System/releases/download/app-latest/stpm-latest.apk',
