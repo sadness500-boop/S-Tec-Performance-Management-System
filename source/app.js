@@ -1,7 +1,7 @@
 /* =====================================================================
  * S-Tec Performance Management System (에스텍 성과 관리 시스템) v1.0.0 — 핵심 로직
  *  · 일일 실적 기록 → 일일·주간·월간·연간 성과 산출(실적 · 계획 대비 달성률 · 환산가치 · SPI 지수)
- *  · 사업장 레지스트리(에스텍베스트 151곳 + 그룹 미화 월말보고 26곳 + 직접 추가)
+ *  · 사업장 레지스트리(에스텍 그룹 기준정보 + 에스텍베스트 151곳 + 그룹 미화 월말보고 26곳 + 직접 추가)
  *  · 저장: 이 기기(localStorage) → 로그인 시 여러 기기 동기화(통합 로그인 user_data) → 공유 서버(pm_records)
  * Program & Design by Rat Rae Choi (제작자 서명 — 하드코딩)
  * ===================================================================== */
@@ -98,7 +98,7 @@ function jobsOf(work, st) {
 let SITE_LIST = [], SITE = {};
 function buildSites() {
   const a = [];
-  SITES.forEach(s => a.push({ key: 'b' + s.id, name: s.name, org: 'best', br: s.br, orgN: s.br + '지사', ind: indOf(s.name, s.type), jobs: jobsOf(s.work, s), total: s.total || 0, hc: { sec: s.sec || 0, cln: s.cln || 0, etc: s.etc || 0 }, addr: s.addr || '', head: [s.pos, s.mgr].filter(Boolean).join(' '), since: s.since, shift: s.shift, work: s.work }));
+  SITES.forEach(s => { const og = (s.company && !/베스트/.test(s.company)) ? ((ORGS.find(o => o.n === s.company) || {}).k || 'best') : 'best'; a.push({ key: 'b' + s.id, name: s.name, org: og, br: s.br, orgN: og === 'best' ? s.br + '지사' : (s.br || orgName(og)), ind: indOf(s.name, s.type), jobs: jobsOf(s.work, s), total: s.total || 0, hc: { sec: s.sec || 0, cln: s.cln || 0, etc: s.etc || 0 }, addr: s.addr || '', head: [s.pos, s.mgr].filter(Boolean).join(' '), since: s.since, shift: s.shift, work: s.work }); });
   GROUP_SITES.forEach((g, i) => { const o = ORGS.find(x => x.k === g[0]); a.push({ key: 'g' + i, name: g[1], org: g[0], br: '', orgN: o ? o.n : g[0], ind: g[2], jobs: ['cln'], total: g[4], hc: { cln: g[4] }, addr: '', head: g[3], work: '미화', shift: '주간' }); });
   (PM.usites || []).forEach(u => a.push(Object.assign({ jobs: ['sec'], total: 0, addr: '', head: '' }, u, { user: true })));
   // 사업장 성과 설정(산업·업종 변경) 반영
