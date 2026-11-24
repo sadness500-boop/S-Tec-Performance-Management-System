@@ -9,7 +9,7 @@ const APP = {
   name: 'S-Tec Performance Management System',
   ko: '에스텍 성과 관리 시스템',
   code: 'stpm',
-  version: 'v1.1.2',
+  version: 'v1.2.0',
   build: '2026-11-20',
   shareUrl: 'https://sadness500-boop.github.io/S-Tec-Performance-Management-System/',
   apkUrl: 'https://github.com/sadness500-boop/S-Tec-Performance-Management-System/releases/download/app-latest/stpm-latest.apk',
@@ -69,8 +69,9 @@ function shrinkPhoto(file, max = 640) {
  * ===================================================================== */
 const PM_KEY = 'stec_pm_data';
 const AUTO_CACHE = new Map();
-let PM = { recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {}, adj: {}, autoDef: null, ver: 1 };
+let PM = { recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {}, adj: {}, autoDef: null, iss: {}, csat: {}, exc: {}, chk: {}, kpiW: null, ver: 2 };
 try { PM = Object.assign(PM, JSON.parse(localStorage.getItem(PM_KEY) || '{}')); } catch (e) { }
+['iss', 'csat', 'exc', 'chk'].forEach(k => { if (!PM[k] || typeof PM[k] !== 'object') PM[k] = {}; });
 Object.keys(PM.qc || {}).forEach(k => { if (/^qc2024_/.test(k)) delete PM.qc[k]; });   // v1.0.1 — 이전 버전 예시(실제 점수) 정리
 function savePM() {                                             // 로그인 시 여러 기기 동기화(auth 모듈이 감쌈)
   AUTO_CACHE.clear();
@@ -92,7 +93,7 @@ function indOf(name, type) {
 function jobsOf(work, st) {
   const w = work || '', out = [];
   if (/보안|경비/.test(w) || (st && st.sec)) out.push('sec'); if (/미화/.test(w) || (st && st.cln)) out.push('cln');
-  if (/시설/.test(w)) out.push('fac'); if (/주차/.test(w)) out.push('prk'); if (/안내/.test(w)) out.push('info');
+  if (/시설/.test(w)) out.push('fac'); if (/주차/.test(w)) out.push('prk'); if (/안내/.test(w)) out.push('info'); if (/사무/.test(w)) out.push('off');
   return out.length ? [...new Set(out)] : ['sec'];
 }
 let SITE_LIST = [], SITE = {};
@@ -123,7 +124,15 @@ function planMonthOf(siteKey, id) { const c = PM.cfg[siteKey]; const p = c && c.
 const COUNT_U = ['건', '회', '명', '대', '개층'];   // 「업무량」 합계는 건·회·명·대 단위만(㎡·kg·시간 등은 항목별로만 표시)
 const recId = (site, job, d) => `${site}|${job}|${d}`;
 function getRec(site, job, d) { return PM.recs[recId(site, job, d)] || null; }
-function putRec(r) { r.id = recId(r.site, r.job, r.d); r.at = new Date().toISOString(); r.by = r.by || (UI.manager && UI.manager.name) || ''; PM.recs[r.id] = r; savePM(); queueShare(r.id); }
+function putRec(r, act) {
+  r.id = recId(r.site, r.job, r.d); const old = PM.recs[r.id], now = new Date().toISOString(), who = (UI.manager && [UI.manager.title, UI.manager.name].filter(Boolean).join(' ')) || r.by || '';
+  r.at = now; r.by = r.by || (UI.manager && UI.manager.name) || ''; r.first = (old && old.first) || now;
+  const ch = {}; const oq = (old && old.q) || {}, nq = r.q || {}; new Set(Object.keys(oq).concat(Object.keys(nq))).forEach(k => { if ((+oq[k] || 0) !== (+nq[k] || 0)) ch[k] = [+oq[k] || 0, +nq[k] || 0]; });
+  // 내용이 바뀌면 확인·승인은 다시 받아야 함(변경 이력에 남김)
+  if (old && act !== 'ok' && act !== 'cust' && Object.keys(ch).length && old.st) { r.st = ''; r.okBy = ''; r.custBy = ''; }
+  r.log = ((old && old.log) || []).concat([{ at: now, by: who, act: act || (old ? 'edit' : 'new'), ch }]).slice(-30);
+  PM.recs[r.id] = r; savePM(); queueShare(r.id);
+}
 function delRec(id) { delete PM.recs[id]; savePM(); queueShare(id, true); }
 
 /* =====================================================================
@@ -159,7 +168,7 @@ function autoQ(s, job, d, lvlOverride) {
   tasksFor(job, ind, s.key).forEach(t => {
     if (AUTO_MANUAL.includes(t.id) || t.k === 'amt') return;
     let v = 0;
-    if (t.k === 'score') { if (dow === AUTO_W[t.id]) v = Math.round(60 + 38 * lvl + (R() - .5) * 6); }
+    if (t.k === 'score') { if (dow === AUTO_W[t.id]) v = t.u === '%' ? Math.min(100, Math.round(88 + 11 * lvl + (R() - .5) * 3)) : Math.round(60 + 38 * lvl + (R() - .5) * 6); }
     else if (AUTO_W[t.id] != null) { if (dow === AUTO_W[t.id] && R() < lvl) v = 1; }
     else if (AUTO_M[t.id] != null) { if (dt.getDate() === AUTO_M[t.id] && R() < lvl) v = 1; }
     else if (t.per === 'm') { const pm = planMonthOf(s.key, t.id); if (dt.getDate() === 15 && pm) v = Math.round(pm * lvl * 2) / 2; }
@@ -182,6 +191,9 @@ function autoRec(s, job, d) {
   if (!r) { r = { id: key, d, site: s.key, job, q: autoQ(s, job, d), a: {}, ev: [], note: '', auto: true }; AUTO_CACHE.set(key, r); }
   return r;
 }
+/* 업무 영향 사유(예외) — 그 기간은 계획에서 빼고, 전면 중지 사유는 자동 산출도 하지 않음 */
+function excOn(siteKey, job, d) { return ((PM.exc || {})[siteKey] || []).find(x => d >= x.from && d <= x.to && (!x.job || x.job === job)) || null; }
+const excStop = x => !!(x && EXC_K[x.k] && EXC_K[x.k][1]);
 function autoRecsIn(r, F) {
   const out = [], td = today(), def = autoDef();
   const list = F.site ? [SITE[F.site]].filter(Boolean) : SITE_LIST.filter(s => siteOk(s, F));
@@ -191,7 +203,7 @@ function autoRecsIn(r, F) {
     const to = r.to < td ? r.to : td; if (from > to) return;
     s.jobs.forEach(j => {
       if (F.job && j !== F.job) return;
-      for (let d = parseD(from); isoD(d) <= to; d = addDays(d, 1)) { const ds = isoD(d); if (!PM.recs[recId(s.key, j, ds)]) out.push(autoRec(s, j, ds)); }
+      for (let d = parseD(from); isoD(d) <= to; d = addDays(d, 1)) { const ds = isoD(d); if (!PM.recs[recId(s.key, j, ds)] && !excStop(excOn(s.key, j, ds))) out.push(autoRec(s, j, ds)); }
     });
   });
   return out;
@@ -200,12 +212,13 @@ function autoRecsIn(r, F) {
 /* =====================================================================
  * 기간
  * ===================================================================== */
-const PERIODS = { d: '일일', w: '주간', m: '월간', y: '연간' };
+const PERIODS = { d: '일일', w: '주간', m: '월간', q: '분기', y: '연간' };
 function periodRange(kind, ref) {
   const d = parseD(ref) || kstNow();
   if (kind === 'd') return { from: isoD(d), to: isoD(d), label: `${fmtD(d)} 일일성과` };
   if (kind === 'w') { const dow = (d.getDay() + 6) % 7, s = addDays(d, -dow), e = addDays(s, 6); return { from: isoD(s), to: isoD(e), label: `${fmtDs(s)} ~ ${fmtDs(e)} 주간성과 (${d.getMonth() + 1}월 ${weekOfMonth(s)}주차)` }; }
   if (kind === 'm') { const s = new Date(d.getFullYear(), d.getMonth(), 1), e = new Date(d.getFullYear(), d.getMonth() + 1, 0); return { from: isoD(s), to: isoD(e), label: `${d.getFullYear()}년 ${d.getMonth() + 1}월 월간성과` }; }
+  if (kind === 'q') { const qn = Math.floor(d.getMonth() / 3), s = new Date(d.getFullYear(), qn * 3, 1), e = new Date(d.getFullYear(), qn * 3 + 3, 0); return { from: isoD(s), to: isoD(e), label: `${d.getFullYear()}년 ${qn + 1}분기 성과 (${qn * 3 + 1}~${qn * 3 + 3}월)` }; }
   const s = new Date(d.getFullYear(), 0, 1), e = new Date(d.getFullYear(), 11, 31); return { from: isoD(s), to: isoD(e), label: `${d.getFullYear()}년 연간성과` };
 }
 function weekOfMonth(d) { const f = new Date(d.getFullYear(), d.getMonth(), 1); return Math.floor(((f.getDay() + 6) % 7 + d.getDate() - 1) / 7) + 1; }
@@ -214,6 +227,7 @@ function prevRange(kind, ref) {
   if (kind === 'd') return periodRange('d', isoD(addDays(d, -1)));
   if (kind === 'w') return periodRange('w', isoD(addDays(d, -7)));
   if (kind === 'm') return periodRange('m', isoD(new Date(d.getFullYear(), d.getMonth() - 1, 1)));
+  if (kind === 'q') return periodRange('q', isoD(new Date(d.getFullYear(), d.getMonth() - 3, 1)));
   return periodRange('y', isoD(new Date(d.getFullYear() - 1, 0, 1)));
 }
 function daysIn(r) { return Math.round((parseD(r.to) - parseD(r.from)) / 86400000) + 1; }
@@ -237,9 +251,10 @@ function recsIn(r, F) {
   const man = Object.values(PM.recs).filter(x => x.d >= r.from && x.d <= r.to && (!F.job || x.job === F.job) && siteOk(SITE[x.site], F));
   return man.concat(autoRecsIn(r, F));
 }
+const NEW12 = new Set(['s_weak', 'c_zone', 'p_facchk']);   // v1.2.0 새 계획 항목 — 이전에 저장한 기록은 계획에서 빼고 계산
 function aggregate(r, F = {}) {
   const rs = recsIn(r, F);
-  const A = { range: r, recs: rs, tasks: {}, cats: {}, days: {}, sites: {}, jobs: {}, ev: [], value: 0, amount: 0, act: 0, plan: 0, planAct: 0, recDays: new Set(), siteN: new Set(), score: [] };
+  const A = { range: r, F, recs: rs, tasks: {}, cats: {}, days: {}, sites: {}, jobs: {}, ev: [], value: 0, amount: 0, act: 0, plan: 0, planAct: 0, recDays: new Set(), siteN: new Set(), score: [], excSet: new Set(), evi: [0, 0, 0, 0, 0, 0], okN: 0, custN: 0, timelyN: 0 };
   Object.keys(CATS).forEach(c => A.cats[c] = { act: 0, val: 0, n: 0 });
   rs.forEach(x => {
     const s = SITE[x.site]; A.siteN.add(x.site); A.recDays.add(x.d);
@@ -247,8 +262,10 @@ function aggregate(r, F = {}) {
     const st = A.sites[x.site] = A.sites[x.site] || { key: x.site, act: 0, val: 0, plan: 0, planAct: 0, prev: 0, ev: 0, n: 0, days: new Set(), jobs: new Set(), score: [] };
     const jb = A.jobs[x.job] = A.jobs[x.job] || { act: 0, val: 0, n: 0 };
     st.days.add(x.d); st.jobs.add(x.job); st.n++; day.n++; jb.n++;
+    const ex = excOn(x.site, x.job, x.d); if (ex) A.excSet.add(x.site + '|' + x.d);
+    if (!x.auto) { A.evi[eviOf(x)]++; if (x.st) A.okN++; if (x.st === 'cust') A.custN++; if (x.first && x.first.slice(0, 10) <= isoD(addDays(parseD(x.d), 1))) A.timelyN++; }
     tasksFor(x.job, s && s.ind, x.site).forEach(t => {
-      const q = +((x.q || {})[t.id] || 0), am = +((x.a || {})[t.id] || 0), pl = t.per === 'm' ? 0 : planOf(x.site, t.id);
+      const q = +((x.q || {})[t.id] || 0), am = +((x.a || {})[t.id] || 0), pl = t.per === 'm' || ex || (NEW12.has(t.id) && !x.auto && !q && (x.at || '') < '2026-11-25') ? 0 : planOf(x.site, t.id);
       const T = A.tasks[t.id] = A.tasks[t.id] || { id: t.id, plan: 0, act: 0, amt: 0, val: 0, n: 0, sum: 0 };
       if (t.k === 'score' || t.k === 'avg') { if (q) { T.sum += q; T.n++; if (t.k === 'score') { A.score.push(q); st.score.push(q); } } return; }
       const v = t.k === 'amt' ? 0 : q * valOf(t.id) + am;
@@ -271,12 +288,58 @@ function aggregate(r, F = {}) {
   A.rate = A.plan ? A.planAct / A.plan * 100 : null;
   A.recDays = A.recDays.size; A.siteN = A.siteN.size;
   A.evBy = {}; Object.keys(EVT).forEach(k => A.evBy[k] = A.ev.filter(e => e.t === k));
-  A.prevN = A.prevQ || 0; A.autoN = rs.filter(x => x.auto).length; A.manN = rs.length - A.autoN; A.incidents = A.evBy.inc.length;
+  A.prevN = A.prevQ || 0; A.sampleN = rs.filter(x => x.sample).length; A.autoN = rs.filter(x => x.auto).length; A.manN = rs.length - A.autoN; A.incidents = A.evBy.inc.length;
   A.unresolved = A.evBy.inc.filter(e => !String(e.action || '').trim()).length;
   A.selfQ = A.score.length ? A.score.reduce((a, b) => a + b, 0) / A.score.length : null;
   A.qc = qcAvgIn(r, F);
+  A.excN = A.excSet.size; delete A.excSet;
+  issueStats(A, r, F); csatStats(A, r, F); chkStats(A, r, F); workerStats(A);
   A.spi = spiOf(A);
   return A;
+}
+/* 증빙 신뢰도(1~5단계) — 기획안 4.2 */
+function eviOf(x) {
+  if (x.auto) return 0; if (x.st === 'cust') return 5;
+  if ((x.ph && x.ph.length) || (x.ev || []).some(e => e.ph1 || e.ph2)) return 4;
+  if (chkCount(x.site, x.d)) return 3; if (x.st === 'ok') return 2; return 1;
+}
+/* 개선·조치·민원 — 기간 안에 접수된 건 + 기간 말 현재 미조치 건 */
+function issList(F) { return Object.values(PM.iss || {}).filter(i => siteOk(SITE[i.site], F) && (!F.job || !i.job || i.job === F.job)); }
+function issueStats(A, r, F) {
+  const all = issList(F), inR = all.filter(i => i.d >= r.from && i.d <= r.to);
+  A.iss = inR; A.issOpen = all.filter(i => i.d <= r.to && !(i.st === 'done' && i.doneD && i.doneD <= r.to) && i.st !== 'hold').sort((a, b) => (ISS_RISK[b.risk] || [0, 0, 0])[2] - (ISS_RISK[a.risk] || [0, 0, 0])[2] || a.d.localeCompare(b.d));
+  const risks = inR.filter(i => i.kind === 'risk' || i.kind === 'fault'); let w = 0, wd = 0;
+  risks.forEach(i => { const k = (ISS_RISK[i.risk] || ISS_RISK.M)[2]; w += k; if (i.st === 'done') wd += k; });
+  A.riskN = risks.length; A.riskDone = risks.filter(i => i.st === 'done').length; A.riskRate = w ? wd / w * 100 : null;
+  A.riskExt = risks.filter(i => i.cause === 'ext').length;
+  const cmp = inR.filter(i => i.kind === 'cmp' || i.kind === 'req'), cd = cmp.filter(i => i.st === 'done');
+  A.cmpN = cmp.length; A.cmpDone = cd.length; A.cmpRate = cmp.length ? cd.length / cmp.length * 100 : null;
+  const days = cd.filter(i => i.doneD).map(i => Math.max(0, (parseD(i.doneD) - parseD(i.d)) / 86400000));
+  A.cmpDays = days.length ? days.reduce((a, b) => a + b, 0) / days.length : null;
+  A.impIss = inR.filter(i => i.kind === 'imp' && i.st === 'done').length;
+}
+function csatAvg(c) { const v = (c.sc || []).map(Number).filter(x => x > 0); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; }
+function csatStats(A, r, F) {
+  // 기간 안 평가 · 없으면 사업장별 최근 1년 안의 마지막 평가(정기 평가는 분기·반기 단위)
+  const yAgo = isoD(addDays(parseD(r.to), -365)), all = Object.values(PM.csat || {}).filter(c => c.d <= r.to && c.d >= yAgo && siteOk(SITE[c.site], F));
+  let pick = all.filter(c => c.d >= r.from); A.csatPrev = false;
+  if (!pick.length && all.length) { const last = {}; all.forEach(c => { if (!last[c.site] || last[c.site].d < c.d) last[c.site] = c; }); pick = Object.values(last); A.csatPrev = true; }
+  const L = pick.map(c => ({ c, v: csatAvg(c) })).filter(x => x.v != null);
+  A.csatL = L.map(x => x.c); A.csat = L.length ? L.reduce((a, x) => a + x.v, 0) / L.length / 5 * 100 : null;
+}
+/* QR 점검 포인트 확인 기록 */
+function chkCount(siteKey, d) { const c = (PM.chk || {})[siteKey]; return c && c.log ? c.log.filter(l => l.at.slice(0, 10) === d).length : 0; }
+function chkStats(A, r, F) {
+  let n = 0; const pts = new Set();
+  Object.entries(PM.chk || {}).forEach(([k, c]) => { if (!siteOk(SITE[k], F)) return; (c.log || []).forEach(l => { const d = l.at.slice(0, 10); if (d >= r.from && d <= r.to) { n++; pts.add(k + '|' + l.pt); } }); });
+  A.chkN = n; A.chkPts = pts.size;
+}
+/* 근무자 개인별 기여도 — 사건·우수사례·개선·조치 기록의 근무자 이름 */
+function workerStats(A) {
+  const W = {}, add = (nm, k) => String(nm || '').split(/[,·/]| 외 /).map(x => x.trim()).filter(x => x && x.length <= 12).forEach(x => { const o = W[x] = W[x] || { n: x, praise: 0, inc: 0, imp: 0, work: 0, edu: 0, iss: 0, sites: new Set() }; o[k]++; });
+  A.ev.forEach(e => { if (['praise', 'inc', 'imp', 'work'].includes(e.t)) add(e.worker, e.t); });
+  (A.iss || []).forEach(i => add(i.worker, 'iss'));
+  A.workers = Object.values(W).map(o => Object.assign(o, { score: o.praise * 3 + o.inc * 2 + o.imp * 2 + o.iss * 2 + o.work })).sort((a, b) => b.score - a.score);
 }
 /* 품질점검(운영실태) 점수 — 기간 안 최근 점검 */
 function qcAvgIn(r, F) {
@@ -284,25 +347,33 @@ function qcAvgIn(r, F) {
   const list = Object.values(PM.qc).filter(q => q.d >= from && q.d <= r.to && (!F.job || q.job === F.job) && siteOk(SITE[q.site] || q.siteObj, F)).map(q => qcScore(q).total).filter(x => x != null);
   return list.length ? list.reduce((a, b) => a + b, 0) / list.length : null;
 }
-/* S-Tec Performance Index — 계획 달성 35 · 품질 25 · 안전(사고 미조치 0) 20 · 개선 10 · 교육 10 */
+/* 통합 성과점수(SPI) — 기획안 5장: 수행률 25 · 품질 25 · 예방·개선 20 · 고객 만족 15 · 역량·교육 10 · 보고·관리 5
+ * 측정 자료가 없는 영역은 빼고 나머지 영역의 비율로 100점 환산(어느 영역이 빠졌는지 보고서에 표시) */
+function kpiW(F) { const c = F && F.site && PM.cfg[F.site] && PM.cfg[F.site].w; return Object.assign({}, SPI_W, PM.kpiW || {}, c || {}); }
 function spiOf(A) {
-  const parts = [];
+  const parts = [], W = kpiW(A.F);
   if (A.rate != null) parts.push(['rate', Math.min(100, A.rate)]);
   const q = A.qc != null && A.selfQ != null ? (A.qc + A.selfQ) / 2 : (A.qc != null ? A.qc : A.selfQ);
   if (q != null) parts.push(['quality', q]);
   if (A.recs.length) {
-    const sf = A.incidents ? 100 * (A.incidents - A.unresolved) / A.incidents : 100;
-    parts.push(['safety', sf]);
     const months = Math.max(1, daysIn(A.range) / 30.4), siteN = Math.max(1, A.siteN);
-    const impN = A.cats.improve.act + A.evBy.imp.length + A.evBy.work.length;
-    parts.push(['improve', Math.min(100, impN / (2 * months * siteN) * 100)]);
-    const eduT = A.tasks; let need = 0, got = 0;
-    Object.values(eduT).forEach(T => { const t = TASK[T.id]; if (t && t.c === 'edu' && T.plan) { need += T.plan; got += Math.min(T.act, T.plan); } });
+    // 예방: 사건사고 조치 + 위험요소·시설이상 조치율(위험도 가중) · 개선: 개선 실적
+    const incR = A.incidents ? 100 * (A.incidents - A.unresolved) / A.incidents : null;
+    const act = [incR, A.riskRate].filter(x => x != null), actR = act.length ? act.reduce((a, b) => a + b, 0) / act.length : 100;
+    const impN = A.cats.improve.act + A.evBy.imp.length + A.evBy.work.length + (A.impIss || 0);
+    const impR = Math.min(100, impN / (2 * months * siteN) * 100);
+    parts.push(['prev', actR * .6 + impR * .4]);
+    let need = 0, got = 0;
+    Object.values(A.tasks).forEach(T => { const t = TASK[T.id]; if (t && t.c === 'edu' && T.plan) { need += T.plan; got += Math.min(T.act, T.plan); } });
     parts.push(['edu', need ? got / need * 100 : (A.cats.edu.act || A.evBy.edu.length ? 100 : 60)]);
   }
+  const cs = [A.csat, A.cmpRate].filter(x => x != null);
+  if (cs.length) parts.push(['csat', A.csat != null && A.cmpRate != null ? A.csat * .7 + A.cmpRate * .3 : cs[0]]);
+  if (A.manN) parts.push(['mgmt', (A.okN / A.manN * 100) * .6 + (A.timelyN / A.manN * 100) * .4]);
   if (!parts.length) return null;
-  const w = parts.reduce((a, [k]) => a + SPI_W[k], 0);
-  return { total: parts.reduce((a, [k, v]) => a + v * SPI_W[k], 0) / w, parts: Object.fromEntries(parts) };
+  const used = parts.filter(([k]) => W[k] > 0); if (!used.length) return null;
+  const w = used.reduce((a, [k]) => a + W[k], 0);
+  return { total: used.reduce((a, [k, v]) => a + v * W[k], 0) / w, parts: Object.fromEntries(used), w: W, missing: Object.keys(SPI_W).filter(k => W[k] > 0 && !used.some(([u]) => u === k)) };
 }
 /* 품질점검 점수: 구역 평균 → 가중 환산 · 점검제외 부문은 0점(2024 보고서 방식) */
 function qcScore(q) {
@@ -330,6 +401,10 @@ function highlights(A, maxN = 6) {
   if (A.incidents) out.push(`사건사고 예방·적발 ${A.incidents}건 대응${A.unresolved ? ` (조치 진행 ${A.unresolved}건)` : ' — 전건 조치 완료'}`);
   if (A.evBy.imp.length || A.evBy.work.length) out.push(`주요 작업 ${A.evBy.work.length}건 · 업무개선 ${A.evBy.imp.length}건 (작업 전·후 사진 기록)`);
   if (A.evBy.praise.length) out.push(`근무자 우수사례·칭찬 ${A.evBy.praise.length}건 — ${A.evBy.praise.slice(0, 2).map(e => `${e.worker || ''} ${e.title || ''}`.trim()).join(', ')}`);
+  if (A.riskN) out.push(`위험요소·시설 이상 사전 발견 ${A.riskN}건 중 ${A.riskDone}건 조치 완료 (위험도 가중 조치율 ${pct(A.riskRate)})${A.riskExt ? ` — 이 중 ${A.riskExt}건은 노후·외부요인` : ''}`);
+  if (A.cmpN) out.push(`민원·요청 ${A.cmpN}건 중 ${A.cmpDone}건 해결 (해결률 ${pct(A.cmpRate)}${A.cmpDays != null ? ` · 평균 ${nf(A.cmpDays, 1)}일` : ''})`);
+  if (A.csat != null) out.push(`고객사 평가 ${nf(A.csat, 1)}점 (5점 척도 ${nf(A.csat / 20, 2)})`);
+  if (A.chkN) out.push(`QR 점검 포인트 확인 ${nf(A.chkN)}회 — 지정 장소 방문 시각 자동 기록`);
   if (A.selfQ != null) out.push(`자체 품질평가 평균 ${nf(A.selfQ, 1)}점`);
   if (A.qc != null) out.push(`운영실태·품질점검 ${nf(A.qc, 1)}점 (${gradeOf(A.qc)[1]})`);
   return out.slice(0, maxN);
@@ -347,7 +422,9 @@ function sampleQ(t, R, ind, wd) {
     c_spill: .3, c_snow: 0, c_req: 1.4, c_selfqc: 0, c_msds: .2, c_imp: .1, c_edu: .1,
     f_daily: 2, f_elec: 3, f_mech: 3, f_firechk: 1.5, f_ev: .2, f_water: 2, f_meter: 1, f_pm: .8, f_fault: .9, f_resp: 0, f_repair: .3, f_energy: 35, f_gen: .05, f_legal: .05, f_req: 1.5, f_drill: .02, f_edu: .1,
     p_in: 650, p_out: 640, p_guide: 120, p_patrol: 4, p_viol: 3, p_acc: .05, p_fee: 380000, p_season: 2, p_cs: 6, p_imp: .05, p_edu: .1,
-    i_visit: 80, i_call: 45, i_meet: 6, i_vip: .3, i_parcel: 25, i_lost: .2, i_cs: .8, i_imp: .05, i_edu: .1
+    i_visit: 80, i_call: 45, i_meet: 6, i_vip: .3, i_parcel: 25, i_lost: .2, i_cs: .8, i_imp: .05, i_edu: .1,
+    s_weak: 2, s_hazard: .15, s_first: 0, c_supply: 14, c_zone: 3, c_reclean: .08, f_anom: .3, f_recover: 0, f_repeat: .02, p_hazard: .1, p_facchk: 1, p_err: .3, i_reask: .1,
+    o_doc: 30, o_data: 40, o_mail: 10, o_supply: 2, o_call: 20, o_req: 6, o_err: .1, o_imp: .05
   }[t.id] || 0;
   if (!base) return 0;
   const wkMul = wd ? 1 : (t.c === 'routine' && /ppl|car|visit|in|out|weigh|tour|meet|call/.test(t.id) ? .25 : t.id === 's_light' ? 1.6 : .7);
@@ -369,6 +446,9 @@ function seedSample() {
       const q = {}, a = {};
       tasksFor(j, s.ind).forEach(t => { const v = sampleQ(t, R, s.ind, wd); if (v) q[t.id] = v; });
       if (j === 'cln' && d.getDate() % 7 === 0) q.c_selfqc = Math.round(84 + R() * 12);
+      if (j === 'sec' && q.s_emerg) q.s_first = Math.round(2 + R() * 4);
+      if (j === 'fac' && q.f_fault) { q.f_resp = Math.round(10 + R() * 20); q.f_recover = Math.round(40 + R() * 120); }
+      if (j === 'fac' && d.getDay() === 5) q.f_uptime = Math.round(970 + R() * 30) / 10;
       if (j === 'sec' && q.s_exerr) a.s_exerr = Math.round(10 + R() * 90) * 1000;
       if (j === 'sec' && q.s_lost) a.s_lost = Math.round(R() * 50) * 1000;
       if (j === 'sec' && d.getDate() === 15) q.s_edu = 2;
@@ -381,10 +461,20 @@ function seedSample() {
       if (q.s_imp || q.c_imp || q.f_imp) ev.push({ t: 'imp', title: ['순찰 동선 QR 체크포인트 추가', '분리수거장 안내 표지 개선', '미끄럼 방지 매트 설치 건의·설치', '출입 대장 전산화'][d.getDate() % 4], loc: '현장', desc: '현장 자체 개선', before: '기존 방식 불편·누락 발생', after: '누락 0건 · 처리시간 단축' });
       if (d.getDate() === 20 && j === 'sec') ev.push({ t: 'praise', title: '고객사 감사 인사 — 신속한 응급 대응', worker: '김○○ 선임', desc: '고객사 총무팀에서 근무자 친절·신속 대응에 감사 메일 접수' });
       if (d.getDate() === 15) ev.push({ t: 'edu', title: JOBS[j].s + ' 직무·안전보건교육', worker: '전 근무자', desc: j === 'sec' ? '경비업법 직무교육 2시간 — 비상대응·CPR' : '산업안전보건교육 2시간 — 넘어짐 예방·MSDS' });
-      PM.recs[id] = { id, d: ds, site: s.key, job: j, by: '예시', q, a, ev, note: '', at: new Date().toISOString(), sample: true };
+      const eom = addDays(d, 1).getDate() === 1;
+      PM.recs[id] = { id, d: ds, site: s.key, job: j, by: '예시', q, a, ev, note: '', at: new Date().toISOString(), first: ds + 'T18:00:00.000Z', st: eom ? 'cust' : R() < .85 ? 'ok' : '', okBy: '현장 책임자(예시)', custBy: eom ? '고객사 총무팀(예시)' : '', sample: true };
       n++;
     }));
   }
+  // 개선·조치·민원 · 고객사 평가 예시
+  const IS = [['risk', '외곽 펜스 하단 훼손(침입 취약)', 'H', '후문 외곽', 'sec'], ['fault', '지하 배수펌프 이상 소음', 'M', '기계실', 'fac'], ['cmp', '2층 화장실 악취 민원', 'M', '본관 2층', 'cln'], ['req', '행사 대비 로비 집중 청소 요청', 'L', '1층 로비', 'cln'], ['imp', '야간 순찰 동선 재설계', 'L', '전 구역', 'sec'], ['risk', '비상계단 적치물(피난 장애)', 'H', '본관 비상계단', 'sec'], ['fault', '주차장 조명 일부 불량', 'L', 'B1 주차장', 'fac'], ['cmp', '정문 차량 대기 지연 민원', 'M', '정문', 'sec']];
+  picks.forEach((s, si) => { for (let m = 0; m <= end.getMonth(); m++) { for (let k = 0; k < 3; k++) {
+    const x = IS[(si * 3 + m + k) % IS.length]; if (!s.jobs.includes(x[4]) && x[4] !== 'sec') continue; const job = s.jobs.includes(x[4]) ? x[4] : s.jobs[0];
+    const dd = new Date(end.getFullYear(), m, 3 + k * 9 + si); if (dd > end) continue; const id = `iss_s${si}_${m}_${k}`; if (PM.iss[id]) continue;
+    const late = (end - dd) / 86400000 < 10, st = late ? (k === 0 ? 'open' : 'prog') : (R() < .97 ? 'done' : 'hold');
+    PM.iss[id] = { id, site: s.key, job, d: isoD(dd), kind: x[0], title: x[1], risk: x[2], loc: x[3], owner: '현장 책임자', due: isoD(addDays(dd, 7)), st, doneD: st === 'done' ? isoD(addDays(dd, 1 + Math.floor(R() * 4))) : '', action: st === 'done' ? '현장 조치 완료 · 고객사 보고' : st === 'prog' ? '자재 발주 · 임시 조치 중' : '', cause: x[0] === 'fault' && k === 1 ? 'ext' : 'in', worker: ['김○○ 선임', '이○○ 반장', '박○○ 주임'][k], desc: '예시 자료', by: '예시', at: new Date().toISOString(), sample: true };
+  } }
+  [2, 5, 8, 11].forEach((m, qi) => { const dd = new Date(end.getFullYear(), m, 25); if (dd > end) return; const id = `cs_s${si}_${qi}`; if (PM.csat[id]) return; PM.csat[id] = { id, site: s.key, d: isoD(dd), sc: CSAT_Q.map(() => Math.min(5, Math.round((3.6 + R() * 1.4) * 2) / 2)), cmt: '전반적으로 성실하게 운영되고 있음(예시)', who: '고객사 총무팀(예시)', by: '예시', at: new Date().toISOString(), sample: true }; }); });
   // 운영실태·품질점검 예시: 가상 사업장 20곳(실제 고객사 점수 아님)
   const yr = String(end.getFullYear());
   QC_SAMPLE.forEach((r, i) => {
@@ -395,7 +485,7 @@ function seedSample() {
   });
   savePM(); return n;
 }
-function clearSample() { Object.keys(PM.recs).forEach(k => { if (PM.recs[k].sample) delete PM.recs[k]; }); Object.keys(PM.qc).forEach(k => { if (PM.qc[k].sample || /^qc2024_/.test(k)) delete PM.qc[k]; }); savePM(); }
+function clearSample() { [PM.recs, PM.iss, PM.csat].forEach(B => Object.keys(B).forEach(k => { if (B[k].sample) delete B[k]; })); Object.keys(PM.qc).forEach(k => { if (PM.qc[k].sample || /^qc2024_/.test(k)) delete PM.qc[k]; }); savePM(); }
 
 /* =====================================================================
  * 공유 서버(pm_records) — 로그인 시 현장 기록을 회사 서버에 올려 본사·지사가 함께 집계
@@ -404,12 +494,14 @@ function clearSample() { Object.keys(PM.recs).forEach(k => { if (PM.recs[k].samp
 const SHARE = { q: new Set(), del: new Set(), t: null, ok: null, last: '' };
 function sbClient() { const A = window.STPM_AUTH; return A && A.client ? A.client : null; }
 function queueShare(id, del) { (del ? SHARE.del : SHARE.q).add(id); if (del) SHARE.q.delete(id); clearTimeout(SHARE.t); SHARE.t = setTimeout(flushShare, 2500); }
-function rowOf(r) { const s = SITE[r.site] || {}; return { id: r.id, site_key: r.site, site_name: s.name || r.siteName || '', org: s.org || '', br: s.br || '', job: r.job, d: r.d, kind: 'rec', data: r }; }
+const shareKind = id => /^iss_/.test(id) ? 'iss' : /^cs_/.test(id) ? 'csat' : 'rec';
+const shareObj = id => ({ rec: PM.recs, iss: PM.iss, csat: PM.csat })[shareKind(id)][id];
+function rowOf(r) { const s = SITE[r.site] || {}; return { id: r.id, site_key: r.site, site_name: s.name || r.siteName || '', org: s.org || '', br: s.br || '', job: r.job || '', d: r.d, kind: shareKind(r.id), data: r }; }
 async function flushShare() {
   const sb = sbClient(); if (!sb || SHARE.ok === false) return;
-  const ids = [...SHARE.q].filter(i => PM.recs[i] && !PM.recs[i].sample), dels = [...SHARE.del]; SHARE.q.clear(); SHARE.del.clear();
+  const ids = [...SHARE.q].filter(i => shareObj(i) && !shareObj(i).sample), dels = [...SHARE.del]; SHARE.q.clear(); SHARE.del.clear();
   try {
-    if (ids.length) { const { error } = await sb.rpc('pm_put', { p_rows: ids.map(i => rowOf(PM.recs[i])) }); if (error) throw error; }
+    if (ids.length) { const { error } = await sb.rpc('pm_put', { p_rows: ids.map(i => rowOf(shareObj(i))) }); if (error) throw error; }
     if (dels.length) await sb.rpc('pm_delete', { p_ids: dels });
     SHARE.ok = true; SHARE.last = new Date().toISOString(); renderShareState();
   } catch (e) { if (/pm_put|function|schema/i.test(String(e.message || e))) SHARE.ok = false; renderShareState(); }
@@ -419,12 +511,12 @@ async function pullShare(r) {
   busy(true, '공유 서버에서 현장 기록을 받는 중…');
   try {
     const { data, error } = await sb.rpc('pm_list', { p_from: r.from, p_to: r.to }); if (error) throw error;
-    let n = 0; (data || []).forEach(row => { const d = row.data; if (!d || !d.id) return; const cur = PM.recs[d.id]; if (!cur || (cur.at || '') < (d.at || '')) { PM.recs[d.id] = d; n++; } });
+    let n = 0; (data || []).forEach(row => { const d = row.data; if (!d || !d.id) return; const box = ({ rec: PM.recs, iss: PM.iss, csat: PM.csat })[row.kind || shareKind(d.id)] || PM.recs, cur = box[d.id]; if (!cur || (cur.at || '') < (d.at || '')) { box[d.id] = d; n++; } });
     savePM(); SHARE.ok = true; renderShareState(); return n;
   } catch (e) { SHARE.ok = false; renderShareState(); toast('공유 서버가 아직 준비되지 않았습니다 — server/supabase_stpm.sql 실행 필요', 4500); return 0; }
   finally { busy(false); }
 }
-async function pushAllShare() { Object.keys(PM.recs).forEach(id => { if (!PM.recs[id].sample) SHARE.q.add(id); }); SHARE.ok = null; await flushShare(); }
+async function pushAllShare() { [PM.recs, PM.iss, PM.csat].forEach(B => Object.keys(B).forEach(id => { if (!B[id].sample) SHARE.q.add(id); })); SHARE.ok = null; await flushShare(); }
 function renderShareState() {
   const el = $('#shareState'); if (!el) return;
   const sb = sbClient();

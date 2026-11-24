@@ -12,7 +12,8 @@ const JOBS = {
   cln:  { n: '미화·환경', s: '미화', ic: '🧹', color: '#1B7A34', fig: 'dio_cln', cute: 'cute_cln' },
   fac:  { n: '시설관리', s: '시설', ic: '🔧', color: '#C2410C', fig: 'dio_fac', cute: 'cute_fac' },
   prk:  { n: '주차관리', s: '주차', ic: '🅿️', color: '#0E7C86', fig: 'dio_prk', cute: 'cute_prk' },
-  info: { n: '안내·리셉션', s: '안내', ic: '💁', color: '#7A2E8E', fig: 'dio_info', cute: 'cute_info' }
+  info: { n: '안내·리셉션', s: '안내', ic: '💁', color: '#7A2E8E', fig: 'dio_info', cute: 'cute_info' },
+  off:  { n: '사무관리·기타', s: '사무', ic: '🗂️', color: '#4B5563', fig: 'dio_info', cute: 'cute_info' }
 };
 
 /* ---------- 산업(사업 유형) ---------- */
@@ -53,6 +54,8 @@ const TASKS = {
     { id: 's_ppl', n: '인원 출입 관리', u: '명', c: 'routine', p: 0, per: 'd' },
     { id: 's_car', n: '차량 출입 관리', u: '대', c: 'routine', p: 0, per: 'd' },
     { id: 's_cctv', n: 'CCTV 관제', u: '시간', c: 'routine', p: 0, per: 'd' },
+    { id: 's_weak', n: '취약지역 점검', u: '회', c: 'prev', p: 2, per: 'd' },
+    { id: 's_hazard', n: '위험요소 발견(사전 조치)', u: '건', c: 'prev', p: 0 },
     { id: 's_weigh', n: '계근·세륜·반출입증 대조', u: '대', c: 'routine', p: 0, per: 'd', i: ['mfg', 'logi', 'energy'] },
     { id: 's_light', n: '소등 조치', u: '건', c: 'prev', p: 0, v: 28, b: '형광등 W×2(등용)×절전시간×7.08원/kWh ÷ 1,000 — 르노삼성 부산공장 산출기준(1건 평균 28원)' },
     { id: 's_pc', n: 'PC 전원 차단', u: '건', c: 'prev', p: 0, v: 96, b: 'PC 시간당 16원 × 평균 절전 6시간' },
@@ -71,6 +74,7 @@ const TASKS = {
     { id: 's_loiter', n: '배회자·거동수상자 확인', u: '건', c: 'prev', p: 0 },
     { id: 's_lost', n: '습득물 처리', u: '건', c: 'service', p: 0, amt: true },
     { id: 's_emerg', n: '응급환자 조치(CPR·AED·119)', u: '건', c: 'resp', p: 0 },
+    { id: 's_first', n: '평균 초동조치 시간', u: '분', c: 'resp', k: 'avg', p: 0 },
     { id: 's_facil', n: '시설물 이상 발견·신고', u: '건', c: 'resp', p: 0 },
     { id: 's_violence', n: '폭언·폭력 상황 대응', u: '건', c: 'resp', p: 0, i: ['hosp', 'pub', 'metro', 'embassy'] },
     { id: 's_visit', n: '방문객 안내·등록', u: '명', c: 'service', p: 0 },
@@ -84,6 +88,8 @@ const TASKS = {
   cln: [
     { id: 'c_area', n: '일상 청소 면적', u: '㎡', c: 'routine', p: 0 },
     { id: 'c_toilet', n: '화장실 점검·청소', u: '회', c: 'routine', p: 0 },
+    { id: 'c_supply', n: '화장실 소모품 보충', u: '회', c: 'routine', p: 0 },
+    { id: 'c_zone', n: '시간대별 청결 점검(오전·점심·오후)', u: '회', c: 'quality', p: 3, per: 'd' },
     { id: 'c_trash', n: '쓰레기 수거·반출', u: 'kg', c: 'routine', p: 0 },
     { id: 'c_recycle', n: '분리수거', u: 'kg', c: 'routine', p: 0 },
     { id: 'c_ev', n: '승강기·에스컬레이터 청소', u: '대', c: 'routine', p: 0 },
@@ -101,6 +107,7 @@ const TASKS = {
     { id: 'c_snow', n: '제설·배수로 정비', u: '회', c: 'resp', p: 0 },
     { id: 'c_req', n: '고객사 요청 작업', u: '건', c: 'service', p: 0 },
     { id: 'c_selfqc', n: '자체 품질평가 점수', u: '점', c: 'quality', k: 'score', p: 0 },
+    { id: 'c_reclean', n: '재청소 발생(검수·고객 요청)', u: '건', c: 'quality', p: 0 },
     { id: 'c_msds', n: 'MSDS·약품 관리 점검', u: '회', c: 'quality', p: 0 },
     { id: 'c_imp', n: '업무 개선', u: '건', c: 'improve', p: 0 },
     { id: 'c_edu', n: '산업안전보건교육', u: '시간', c: 'edu', p: 0, per: 'm', pm: 2 }
@@ -114,8 +121,12 @@ const TASKS = {
     { id: 'f_water', n: '급배수·위생설비 점검', u: '건', c: 'routine', p: 0 },
     { id: 'f_meter', n: '에너지 검침', u: '회', c: 'routine', p: 1, per: 'd' },
     { id: 'f_pm', n: '예방정비(PM)', u: '건', c: 'prev', p: 0 },
+    { id: 'f_anom', n: '이상징후 사전 발견·조치', u: '건', c: 'prev', p: 0 },
     { id: 'f_fault', n: '고장 접수·조치', u: '건', c: 'resp', p: 0 },
-    { id: 'f_resp', n: '평균 조치시간', u: '분', c: 'resp', k: 'avg', p: 0 },
+    { id: 'f_resp', n: '평균 조치시간(접수→초동조치)', u: '분', c: 'resp', k: 'avg', p: 0 },
+    { id: 'f_recover', n: '평균 복구시간(장애→정상)', u: '분', c: 'resp', k: 'avg', p: 0 },
+    { id: 'f_uptime', n: '설비 정상률', u: '%', c: 'quality', k: 'score', p: 0 },
+    { id: 'f_repeat', n: '반복고장(동일 원인 재발)', u: '건', c: 'quality', p: 0 },
     { id: 'f_repair', n: '자체 수리(외주 대체)', u: '건', c: 'improve', p: 0, v: 150000, b: '외주 출장·수리비 평균 15만원 대체(추정 · 설정에서 조정)' },
     { id: 'f_energy', n: '에너지 절감량', u: 'kWh', c: 'improve', p: 0, v: 120, b: '산업용 전력 평균 단가 kWh당 120원(추정)' },
     { id: 'f_gen', n: '비상발전기 시운전', u: '회', c: 'prev', p: 0 },
@@ -130,6 +141,9 @@ const TASKS = {
     { id: 'p_guide', n: '차량 유도', u: '대', c: 'service', p: 0 },
     { id: 'p_patrol', n: '주차장 순찰', u: '회', c: 'routine', p: 4, per: 'd' },
     { id: 'p_viol', n: '불법·장기주차 계도', u: '건', c: 'prev', p: 0 },
+    { id: 'p_hazard', n: '위험요소 발견·조치', u: '건', c: 'prev', p: 0 },
+    { id: 'p_facchk', n: '차단기·유도설비 점검', u: '회', c: 'quality', p: 1, per: 'd' },
+    { id: 'p_err', n: '입출차 오류·대기 처리', u: '건', c: 'resp', p: 0 },
     { id: 'p_acc', n: '접촉사고 예방·처리', u: '건', c: 'resp', p: 0 },
     { id: 'p_fee', n: '주차요금 정산', u: '원', c: 'service', k: 'amt', p: 0 },
     { id: 'p_season', n: '정기권·등록차량 관리', u: '건', c: 'service', p: 0 },
@@ -145,8 +159,24 @@ const TASKS = {
     { id: 'i_parcel', n: '택배·우편 관리', u: '건', c: 'routine', p: 0 },
     { id: 'i_lost', n: '분실물 처리', u: '건', c: 'service', p: 0 },
     { id: 'i_cs', n: '민원 처리', u: '건', c: 'service', p: 0 },
+    { id: 'i_answer', n: '전화 응답률', u: '%', c: 'quality', k: 'score', p: 0 },
+    { id: 'i_cseval', n: '응대 품질 평가(친절·정확)', u: '점', c: 'quality', k: 'score', p: 0 },
+    { id: 'i_reask', n: '안내 오류·재문의', u: '건', c: 'quality', p: 0 },
     { id: 'i_imp', n: '업무 개선', u: '건', c: 'improve', p: 0 },
     { id: 'i_edu', n: 'CS·직무교육', u: '시간', c: 'edu', p: 0, per: 'm', pm: 2 }
+  ],
+  off: [
+    { id: 'o_doc', n: '문서·서류 처리', u: '건', c: 'routine', p: 0 },
+    { id: 'o_data', n: '자료 입력·정리', u: '건', c: 'routine', p: 0 },
+    { id: 'o_mail', n: '우편·택배 수발', u: '건', c: 'routine', p: 0 },
+    { id: 'o_supply', n: '비품·소모품 관리', u: '건', c: 'routine', p: 0 },
+    { id: 'o_call', n: '전화·내방 응대', u: '건', c: 'service', p: 0 },
+    { id: 'o_req', n: '요청사항 처리', u: '건', c: 'service', p: 0 },
+    { id: 'o_due', n: '기한 준수율', u: '%', c: 'quality', k: 'score', p: 0 },
+    { id: 'o_time', n: '평균 처리시간', u: '분', c: 'quality', k: 'avg', p: 0 },
+    { id: 'o_err', n: '오류·수정 발생', u: '건', c: 'quality', p: 0 },
+    { id: 'o_imp', n: '업무 프로세스 개선', u: '건', c: 'improve', p: 0 },
+    { id: 'o_edu', n: '직무교육', u: '시간', c: 'edu', p: 0, per: 'm', pm: 2 }
   ]
 };
 const TASK = {}; Object.entries(TASKS).forEach(([j, a]) => a.forEach(t => { t.job = j; TASK[t.id] = t; }));
@@ -161,9 +191,31 @@ const EVT = {
   org:    { n: '조직활성화·행사지원', ic: '🎉', color: '#0E7C86' }
 };
 
-/* ---------- 성과 지수(SPI) 가중치 ---------- */
-const SPI_W = { rate: 35, quality: 25, safety: 20, improve: 10, edu: 10 };
-const GRADE = [[90, 'S', '우수', '#1B7A34'], [80, 'A', '양호', '#0B1F8A'], [70, 'B', '보통', '#E8750A'], [0, 'C', '미흡', '#C0392B']];
+/* ---------- 통합 성과평가(KPI) 모델 — S-Tec PMS 기획안 5장 ----------
+ * 업무 수행률 25 · 업무 품질 25 · 예방 및 개선활동 20 · 고객 만족도 15 · 근무자 역량 및 교육 10 · 보고 및 관리체계 5 = 100점
+ * 계약별로 사업장 설정에서 가중치를 바꿀 수 있음(측정 자료가 없는 영역은 나머지 영역 비율로 환산) */
+const SPI_W = { rate: 25, quality: 25, prev: 20, csat: 15, edu: 10, mgmt: 5 };
+const SPI_N = { rate: ['업무 수행률', '계획 대비 업무 수행 및 필수업무 이행'], quality: ['업무 품질', '품질점검·자체 품질평가·직군별 품질지표'], prev: ['예방 및 개선활동', '위험요소 사전 발견·조치율·개선·재발방지'], csat: ['고객 만족도', '고객사 평가·민원 해결률'], edu: ['근무자 역량 및 교육', '교육 이수·훈련·숙련도'], mgmt: ['보고 및 관리체계', '관리자 확인·보고 적시성·기록 정확성'] };
+const SPI_S = { rate: '수행', quality: '품질', prev: '예방', csat: '만족', edu: '교육', mgmt: '관리' };
+const GRADE = [[95, 'S', '탁월', '#1B7A34'], [90, 'A', '우수', '#0B1F8A'], [80, 'B', '양호', '#0E7C86'], [70, 'C', '개선 필요', '#E8750A'], [0, 'D', '집중 관리', '#C0392B']];
+
+/* ---------- 개선·조치·민원 관리(미조치 사항 추적) ---------- */
+const ISS_K = {
+  risk: { n: '위험요소', ic: '⚠️', color: '#C0392B' }, fault: { n: '시설 이상·장애', ic: '🔧', color: '#C2410C' },
+  cmp: { n: '민원', ic: '📣', color: '#E8750A' }, req: { n: '고객사 요청', ic: '🤝', color: '#0E7C86' }, imp: { n: '개선과제', ic: '💡', color: '#7A2E8E' }
+};
+const ISS_ST = { open: ['접수', '#C0392B'], prog: ['진행', '#E8750A'], done: ['완료', '#1B7A34'], hold: ['보류', '#667089'] };
+const ISS_RISK = { H: ['상', '#C0392B', 3], M: ['중', '#E8750A', 2], L: ['하', '#1B7A34', 1] };
+const ISS_CAUSE = { in: '내부(관리 범위)', ext: '외부요인(노후·이용 급증·고객사 정책·전력 등)', na: '해당 없음' };
+
+/* ---------- 고객사 평가(만족도) 항목 — 1~5점 ---------- */
+const CSAT_Q = ['업무 수행의 성실성', '서비스 품질(청결·점검·응대)', '요청·민원 대응 속도', '보고·소통', '근무자 태도·용모'];
+
+/* ---------- 업무 영향 사유(예외 처리) — 기간 중 계획에서 제외 ---------- */
+const EXC_K = { req: ['고객사 요청(작업 변경·중지)', true], stop: ['작업 중지(공사·점검)', true], block: ['출입 제한', true], weather: ['기상 악화', false], holiday: ['고객사 휴무·행사', true], etc: ['기타', false] };
+
+/* ---------- 증빙 신뢰도 단계 — 기획안 4.2 ---------- */
+const EVI = [[1, '근무자 직접 입력'], [2, '관리자 확인'], [3, 'QR·시간 자동기록'], [4, '사진·점검 결과 첨부'], [5, '고객사 확인·승인']];
 function gradeOf(s) { if (s == null || isNaN(s)) return ['-', '-', '#667089']; const g = GRADE.find(x => s >= x[0]); return [g[1], g[2], g[3]]; }
 
 /* =====================================================================
@@ -218,6 +270,12 @@ const QC = {
     risk: ['개인정보 보호', '비상연락·대피 안내', '분실물 관리 절차'],
     env: ['안내데스크 환경', '휴게공간', '유니폼·용모'],
     zones: { _: ['첫인상·인사', '방문 안내 정확성', '전화 응대', 'VIP 의전', '민원 처리', '회의실 준비'] }
+  },
+  off: {
+    gen: ['업무일지·처리대장', '문서 보관·분류 체계', '비품·소모품 대장', '교육훈련 기록', '정보·근태관리'],
+    risk: ['개인정보·보안 문서 관리', '비상연락·대피 안내', '전산 계정·자료 반출 관리'],
+    env: ['사무 공간 정리', '휴게공간', '유니폼·용모'],
+    zones: { _: ['업무 처리 정확성', '기한 준수', '요청사항 처리', '전화·내방 응대', '문서 관리', '업무 개선'] }
   }
 };
 const QC_SCALE = [[100, '우수'], [83.3, '양호'], [66.7, '보통'], [50, '미흡'], [0, '불량']];
@@ -276,14 +334,17 @@ const AUTO_N = {
   c_area: 800, c_toilet: 6, c_trash: 25, c_recycle: 9, c_ev: .8, c_stair: 1.5, c_outside: .3, c_mach: 4, c_wax: .6, c_carpet: .8, c_glass: 2, c_weed: .8, c_disinf: .4, c_medwaste: .6, c_slip: .05, c_req: .12, c_imp: .01,
   f_elec: 1.5, f_mech: 1.5, f_firechk: .6, f_ev: .08, f_water: 1, f_pm: .35, f_legal: .01, f_req: .6,
   p_in: 140, p_out: 138, p_guide: 25, p_viol: .7, p_season: .3, p_cs: 1.5, p_imp: .01,
-  i_visit: 35, i_call: 22, i_meet: 2.5, i_vip: .06, i_parcel: 8, i_cs: .25, i_imp: .01
+  i_visit: 35, i_call: 22, i_meet: 2.5, i_vip: .06, i_parcel: 8, i_cs: .25, i_imp: .01,
+  s_hazard: .03, c_supply: 2, f_anom: .06, p_hazard: .03,
+  o_doc: 18, o_data: 25, o_mail: 6, o_supply: 1.5, o_call: 12, o_req: 4, o_imp: .01
 };
 const AUTO_F = { s_cctv: 'cctv' };                              // 24시간 근무면 24시간, 아니면 10시간
-const AUTO_W = { c_msds: 1, c_selfqc: 5 };                       // 월요일 MSDS 점검 · 금요일 자체 품질평가
+const AUTO_W = { c_msds: 1, c_selfqc: 5, f_uptime: 5, i_answer: 5, i_cseval: 5, o_due: 5 };   // 월요일 MSDS 점검 · 금요일 자체 품질평가·주간 품질지표
 const AUTO_M = { s_drill: 20, f_gen: 5, f_drill: 20 };           // 매월 그 날 1회
 const AUTO_MANUAL = ['s_leak', 's_fire', 's_intrude', 's_export', 's_exerr', 's_infosec', 's_lost', 's_emerg', 's_violence', 's_facil', 's_report',
-  'c_spill', 'c_snow', 'f_fault', 'f_resp', 'f_repair', 'f_energy', 'p_acc', 'p_fee', 'i_lost'];
+  'c_spill', 'c_snow', 'f_fault', 'f_resp', 'f_repair', 'f_energy', 'p_acc', 'p_fee', 'i_lost',
+  's_first', 'c_reclean', 'f_recover', 'f_repeat', 'p_err', 'i_reask', 'o_time', 'o_err'];   // 실제 일어난 일·측정값만
 /* 산업 보정(출입·방문 흐름) · 주말 근무 비율(주간 근무 업종) */
 const AUTO_IND = { hosp: 1.6, univ: 1.4, mfg: 1.2, logi: 1.3, office: 1, mixed: 1.3, apt: .5, hotel: 1.2, metro: 1.8, pub: 1.1, energy: .9, embassy: .4 };
 const AUTO_WEEKEND = { hosp: .7, hotel: .9, metro: .8, mixed: .8, mfg: .4, logi: .5, apt: .5, energy: .5, univ: .3, office: .2, pub: .2, embassy: .3 };
-const AUTO_FLOW = ['s_ppl', 's_car', 's_visit', 's_tour', 'p_in', 'p_out', 'p_guide', 'i_visit', 'i_call', 'c_toilet', 'c_trash'];
+const AUTO_FLOW = ['s_ppl', 's_car', 's_visit', 's_tour', 'p_in', 'p_out', 'p_guide', 'i_visit', 'i_call', 'c_toilet', 'c_trash', 'c_supply', 'o_call'];

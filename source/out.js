@@ -12,10 +12,11 @@ function periodTitle(r) {
   if (r.from === r.to) return `${f.getFullYear()}. ${f.getMonth() + 1}. ${f.getDate()}.(${WKK[f.getDay()]})`;
   if (f.getDate() === 1 && t.getDate() === new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate() && f.getMonth() === t.getMonth()) return `( ${f.getMonth() + 1} )월`;
   if (f.getMonth() === 0 && f.getDate() === 1 && t.getMonth() === 11 && t.getDate() === 31) return `${f.getFullYear()}년`;
+  if (f.getDate() === 1 && f.getMonth() % 3 === 0 && t.getMonth() === f.getMonth() + 2 && t.getDate() === new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate()) return `${f.getFullYear()}년 ${f.getMonth() / 3 + 1}분기`;
   return `${fmtDs(f)} ~ ${fmtDs(t)}`;
 }
-const perWord = r => r.from === r.to ? '일일' : daysIn(r) <= 7 ? '주간' : daysIn(r) <= 31 ? '월' : '연간';
-const nextWord = r => r.from === r.to ? '익일' : daysIn(r) <= 7 ? '차주' : daysIn(r) <= 31 ? '차월' : '차년도';
+const perWord = r => r.from === r.to ? '일일' : daysIn(r) <= 7 ? '주간' : daysIn(r) <= 31 ? '월' : daysIn(r) <= 92 ? '분기' : '연간';
+const nextWord = r => r.from === r.to ? '익일' : daysIn(r) <= 7 ? '차주' : daysIn(r) <= 31 ? '차월' : daysIn(r) <= 92 ? '차분기' : '차년도';
 
 /* =====================================================================
  * 문서 모델 → Word (docx)
@@ -200,6 +201,8 @@ function monthlyBlocks(s, r, F) {
   B.push({ k: 'h', t: '2. 정량 성과 (업무 계수화)' });
   B.push({ k: 'box', title: `「보이지 않는 성과」 — SPI ${A.spi ? nf(A.spi.total, 1) + '점 (' + gradeOf(A.spi.total)[0] + ' ' + gradeOf(A.spi.total)[1] + ')' : '-'}`, items: highlights(A, 7) });
   B.push({ k: 'table', head: ['업종', '업무 항목', '단위', '계획', '실적', '달성률', '환산가치(원)'], w: [.7, 2.6, .6, .9, .9, .9, 1.2], align: ['c', '', 'c', 'r', 'r', 'r', 'r'], rows: catRows(A).concat([{ tot: true, cells: ['합계', '', '', nf(A.plan), nf(A.act), A.rate == null ? '-' : nf(A.rate, 1) + '%', nf(A.value)] }]) });
+  if (A.spi) B.push({ k: 'table', head: ['통합 성과점수'].concat(spiRows(A).map(x => `${x.n}(${x.w})`)).concat(['종합']), w: [1.1].concat(spiRows(A).map(() => 1)).concat([.8]), align: Array(8).fill('c'), size: 15, rows: [['영역 점수'].concat(spiRows(A).map(x => x.v == null ? '미측정' : nf(x.v, 1))).concat([`${nf(A.spi.total, 1)} ${gradeOf(A.spi.total)[0]}`])] });
+  if (A.issOpen.length || A.iss.length) B.push({ k: 'p', t: `개선·조치·민원: 기간 접수 ${A.iss.length}건 · 위험요소 조치율 ${pct(A.riskRate)} · 민원 해결률 ${pct(A.cmpRate)} · 기간 말 미조치 ${A.issOpen.length}건${A.issOpen.length ? ' — ' + A.issOpen.slice(0, 3).map(i => `${i.title}(${ISS_ST[i.st][0]}${i.due ? ', ' + fmtDs(i.due).slice(5) + ' 예정' : ''})`).join(', ') : ''}`, size: 17 });
   if (A.autoN) B.push({ k: 'p', t: `※ 직접 입력 ${A.manN}건 외 ${A.autoN}건(업종·일 단위)은 사업장 인원·근무형태·산업 기준 표준 업무량 × 성과 수준(${autoCfg(s.key).lvl}%)으로 산출한 값이며, 현장 확인 후 조정·관리합니다.`, size: 16, color: C.gray });
   const tr = trendData(A, UI.per || 'm');
   if (A.recs.length > 1) B.push({ k: 'img', src: chartPng('bar', { title: '일자별 업무량 · 환산가치', labels: tr.lb, bars: [{ name: '업무량', data: tr.act, color: '#2A44D4' }], line: { name: '환산가치(원)', data: tr.val, color: '#1B7A34' } }, 1100, 440), wIn: 6.6, ratio: .4 });
@@ -302,6 +305,13 @@ function deckSlides(r, F) {
   if (im.length) im.forEach((e, i) => { const y = 1.15 + i * 2.95; sl6.push(Rc(.45, y, 12.45, 2.8, 'FFFFFF', { line: 'DCE3F3', r: .08 }), T(.65, y + .1, 5.6, .4, `${EVT[e.t].ic} ${e.title}`, { size: 14, bold: true, color: C.navy }), T(.65, y + .55, 5.6, 2.1, `일자: ${fmtDs(e.d)} · 장소: ${e.loc || '-'}\n${e.desc || ''}${e.before ? '\n개선 전: ' + e.before : ''}${e.after ? '\n개선 후: ' + e.after : ''}`, { size: 11.5, color: C.ink, line: 1.35 })); [e.ph1, e.ph2].forEach((p, k) => { const x = 6.45 + k * 3.2; if (p) sl6.push(Im(x, y + .15, 3.05, 2.2, p, { cover: true })); else sl6.push(Rc(x, y + .15, 3.05, 2.2, 'F1F3F8'), T(x, y + .15, 3.05, 2.2, '사진 없음', { size: 11, color: '999999', align: 'center', valign: 'middle' })); sl6.push(T(x, y + 2.38, 3.05, .3, k ? '개선 후 / 작업 후' : '개선 전 / 작업 전', { size: 9.5, color: C.gray, align: 'center' })); }); });
   else sl6.push(T(.6, 1.3, 12, .6, '이 기간 업무개선·주요 작업 기록이 없습니다.', { size: 14, color: C.gray }));
   S.push(sl6);
+  // 6-2 통합 성과점수 · 개선·조치·민원 (기획안 5·6장)
+  const sr = spiRows(A), op = A.issOpen.slice(0, 8);
+  S.push(slideBase('Ⅰ. 주요업무 성과 — 통합 성과점수 · 개선·조치·민원', ++no, who).concat([
+    Tb(.45, 1.15, 6.1, tblRows(['평가 영역', '배점', '영역 점수', '반영'], sr.map(x => [x.n, x.w, x.v == null ? '미측정(제외)' : nf(x.v, 1), x.got == null ? '-' : nf(x.got, 1)]).concat([['종합', '', A.spi ? `${nf(A.spi.total, 1)}점 ${g[0]}` : '-', '']]), { align: ['', 'c', 'r', 'r'] }), [2.4, .8, 1.7, 1.2], { size: 11 }),
+    T(.45, 5.0, 6.1, 1.6, `위험요소·시설 이상 ${A.riskN}건 중 ${A.riskDone}건 조치 (조치율 ${pct(A.riskRate)})\n민원·요청 ${A.cmpN}건 중 ${A.cmpDone}건 해결 (해결률 ${pct(A.cmpRate)})\n고객사 평가 ${A.csat == null ? '-' : nf(A.csat, 1) + '점'} · QR 점검 확인 ${nf(A.chkN)}회 · 관리자 확인율 ${A.manN ? pct(A.okN / A.manN * 100) : '-'}`, { size: 12, color: C.ink, line: 1.4 }),
+    T(6.8, 1.1, 6, .4, `■ 미조치 사항 ${A.issOpen.length}건 (담당·예정일·상태)`, { size: 13, bold: true, color: 'C0392B' }),
+    op.length ? Tb(6.8, 1.5, 6.1, tblRows(['접수', '구분', '내용', '예정일', '상태'], op.map(i => [fmtDs(i.d).slice(5), ISS_K[i.kind].n, i.title, i.due ? fmtDs(i.due).slice(5) : '-', ISS_ST[i.st][0]]), { align: ['c', 'c', '', 'c', 'c'] }), [.7, 1.1, 2.6, .8, .9], { size: 10 }) : T(6.8, 1.6, 6, .5, '✔ 미조치 사항 없음', { size: 14, bold: true, color: C.greenD })]));
   // 7 교육훈련 · 조직활성화 · 우수사례
   const ed = A.evBy.edu.concat(A.evBy.praise, A.evBy.org).slice(0, 10);
   S.push(slideBase('Ⅰ. 주요업무 성과 — 5. 교육훈련 · 조직활성화 · 우수사례', ++no, who).concat(ed.length ? [Tb(.45, 1.15, 12.45, tblRows(['구분', '일자', '제목', '대상·근무자', '주요 내용'], ed.map(e => [EVT[e.t].n, fmtDs(e.d).slice(5), e.title, e.worker, e.desc])), [2.2, .9, 3.2, 1.8, 4.35], { size: 10.5 })] : [T(.6, 1.3, 12, .6, '이 기간 교육·조직활성화 기록이 없습니다.', { size: 14, color: C.gray })]));

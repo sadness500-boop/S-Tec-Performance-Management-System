@@ -2,7 +2,7 @@
 
 <img src="icons/icon-192.png" width="96" alt="에스텍 성과 관리 시스템 아이콘">
 
-**에스텍 그룹 성과 관리 시스템** · v1.1.2 · 통합관리 시스템 10번째 프로그램 (`stpm`)
+**에스텍 그룹 성과 관리 시스템** · v1.2.0 · 통합관리 시스템 10번째 프로그램 (`stpm`)
 
 > 용역 업무의 가장 좋은 결과는 「아무 일도 일어나지 않는 것」입니다. 그래서 고객사는 「하는 게 없다」고 느끼기 쉽습니다.
 > 이 프로그램은 그 **「일어나지 않은 일」을 기록하고 세어** 일일·주간·월간·연간 성과와 환산가치로 보여 줍니다.
@@ -12,7 +12,7 @@
 | 구분 | 주소 |
 |---|---|
 | 웹 버전 | https://sadness500-boop.github.io/S-Tec-Performance-Management-System/ |
-| 파일 하나로 여는 배포본 | `releases/S-Tec-Performance-Management-System_v1.1.2.html` |
+| 파일 하나로 여는 배포본 | `releases/S-Tec-Performance-Management-System_v1.2.0.html` |
 | 안드로이드 앱 (최신) | https://github.com/sadness500-boop/S-Tec-Performance-Management-System/releases/download/app-latest/stpm-latest.apk |
 
 - **APK는 GitHub Actions가 만듭니다.** `index.html`·`version.json`을 올리면 Actions 「Android APK」가 약 5분 뒤 `releases/`와 릴리스에 APK를 올립니다.

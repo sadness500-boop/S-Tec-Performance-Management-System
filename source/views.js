@@ -27,7 +27,7 @@ function setTab(t) {
   UI.tab = t; saveUI();
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === t)));
   $$('.pane').forEach(p => p.classList.toggle('on', p.id === 'p-' + t));
-  ({ dash: renderDash, entry: renderEntry, qc: renderQC, report: renderReport, set: renderSet })[t]();
+  ({ dash: renderDash, entry: renderEntry, qc: renderQC, iss: renderIss, report: renderReport, set: renderSet })[t || 'dash']();
 }
 function renderAll() { buildSites(); renderHeroStats(); setTab(UI.tab || 'dash'); }
 function renderHeroStats() {
@@ -61,15 +61,18 @@ function renderDash() {
     <label style="flex:1 1 220px">사업장<select id="fSite">${siteOptions(F, F.site)}</select></label>
     <button class="btn" id="fPull" title="로그인한 계정으로 공유 서버의 현장 기록을 받아 함께 집계">☁ 서버 기록 받기</button>
   </div>
-  <div class="card" style="--c:#0B1F8A"><h2>📈 ${esc(r.label)} <span class="r">${esc(scopeLabel(F))} · 직접 입력 ${nf(A.manN)}건 · 자동 산출 ${nf(A.autoN)}건 · ${nf(A.siteN)}개 사업장 · ${nf(A.recDays)}일 <button class="btn sm" id="fAdj" type="button">✎ 수량 조정</button></span></h2></div>
+  ${sampleBanner(A)}
+  <div class="card" style="--c:#0B1F8A"><h2>📈 ${esc(r.label)} <span class="r">${esc(scopeLabel(F))} · 직접 입력 ${nf(A.manN)}건 · 자동 산출 ${nf(A.autoN)}건 · ${nf(A.siteN)}개 사업장 · ${nf(A.recDays)}일${A.excN ? ` · 업무 영향 사유 ${A.excN}일(계획 제외)` : ''} <button class="btn sm" id="fAdj" type="button">✎ 수량 조정</button> <button class="btn sm" id="fClient" type="button">🏢 고객사 화면</button></span></h2></div>
   <div class="kpis">
-    <div class="kpi spi"><small>성과지수 SPI</small><b>${A.spi ? nf(A.spi.total, 1) : '-'}<span class="gauge">${g[0]} ${g[1]}</span></b><span>${A.spi ? Object.entries(A.spi.parts).map(([k, v]) => ({ rate: '달성', quality: '품질', safety: '안전', improve: '개선', edu: '교육' })[k] + ' ' + Math.round(v)).join(' · ') : '실적을 기록하면 계산합니다'}</span></div>
+    <div class="kpi spi"><small>성과지수 SPI</small><b>${A.spi ? nf(A.spi.total, 1) : '-'}<span class="gauge">${g[0]} ${g[1]}</span></b><span>${A.spi ? Object.entries(A.spi.parts).map(([k, v]) => SPI_S[k] + ' ' + Math.round(v)).join(' · ') : '실적을 기록하면 계산합니다'}</span></div>
     <div class="kpi" style="--c:#0B1F8A"><small>업무 수행량</small><b>${shortN(A.act)}</b><span>${dlt(A.act, P.act)}</span></div>
     <div class="kpi" style="--c:#C0392B"><small>예방·적발 활동</small><b>${nf(A.prevN)}<small style="display:inline;font-size:13px"> 건</small></b><span>${dlt(A.prevN, P.prevN)}</span></div>
     <div class="kpi" style="--c:#1B7A34"><small>환산가치</small><b>${won(A.value)}</b><span>연 누계 ${won(Y.value)}</span></div>
     <div class="kpi" style="--c:#E8750A"><small>계획 대비 달성률</small><b>${pct(A.rate)}</b><span>${A.plan ? `계획 ${nf(A.plan)} · 실적 ${nf(A.planAct)}` : '계획량은 ⚙ 설정에서'}</span></div>
     <div class="kpi" style="--c:#7A2E8E"><small>사건사고 예방·적발</small><b>${nf(A.incidents)}<small style="display:inline;font-size:13px"> 건</small></b><span>${A.incidents ? (A.unresolved ? `조치 진행 ${A.unresolved}건` : '전건 조치 완료') : '사고 0건 유지'}</span></div>
   </div>
+  ${kpi2Html(A)}
+  <div class="two">${spiCardHtml(A)}${issOpenCardHtml(A)}</div>
   <div class="two">
     <div class="card" style="--c:#2A44D4"><h2>📊 기간 추이 <span class="r">막대: 업무량 · 선: 환산가치</span></h2><div class="body"><div class="chartbox"><canvas id="cTrend"></canvas></div></div></div>
     <div class="card" style="--c:#1B7A34"><h2>🧩 성과 영역별 업무량</h2><div class="body"><div class="chartbox"><canvas id="cCat"></canvas></div></div></div>
@@ -79,19 +82,21 @@ function renderDash() {
     <div class="card" style="--c:#7A2E8E"><h2>🏅 사건사고·우수사례·개선 <span class="r">${A.ev.length}건</span></h2><div class="body" style="max-height:340px;overflow:auto">${evListHtml(A.ev.slice().sort((a, b) => b.d.localeCompare(a.d)).slice(0, 40), true)}</div></div>
   </div>
   <div class="card" style="--c:#0B1F8A"><h2>📋 업무 항목별 성과 <span class="r">계획 · 실적 · 달성률 · 환산가치 · 전기 · 연 누계</span></h2><div class="body">${taskTableHtml(A, P, Y)}</div></div>
-  <div class="card" style="--c:#0E7C86"><h2>🏢 사업장별 성과 순위 <span class="r">SPI 순</span></h2><div class="body">${siteTableHtml(A, r)}</div></div>`;
+  <div class="card" style="--c:#0E7C86"><h2>🏢 사업장별 성과 순위 <span class="r">SPI 순</span></h2><div class="body">${siteTableHtml(A, r)}</div></div>
+  ${workersCardHtml(A)}`;
   bindDash(); drawCharts();
 }
 function bindDash() {
   const set = (k, v) => { UI.F = Object.assign(curF(), { [k]: v }); if (k === 'org') { UI.F.br = ''; UI.F.site = ''; } if (['br', 'ind', 'job'].includes(k)) { const s = SITE[UI.F.site]; if (s && !sitesFiltered(UI.F).includes(s)) UI.F.site = ''; } saveUI(); renderDash(); };
   $('#fPer').onclick = e => { const b = e.target.closest('button'); if (b) { UI.per = b.dataset.p; saveUI(); renderDash(); } };
   $('#fRef').onchange = e => { UI.ref = e.target.value; saveUI(); renderDash(); };
-  const step = dir => { const d = parseD(UI.ref || today()), p = UI.per || 'm'; const n = p === 'd' ? addDays(d, dir) : p === 'w' ? addDays(d, 7 * dir) : p === 'm' ? new Date(d.getFullYear(), d.getMonth() + dir, Math.min(d.getDate(), 28)) : new Date(d.getFullYear() + dir, d.getMonth(), 1); UI.ref = isoD(n); saveUI(); renderDash(); };
+  const step = dir => { const d = parseD(UI.ref || today()), p = UI.per || 'm'; const n = p === 'd' ? addDays(d, dir) : p === 'w' ? addDays(d, 7 * dir) : p === 'm' ? new Date(d.getFullYear(), d.getMonth() + dir, Math.min(d.getDate(), 28)) : p === 'q' ? new Date(d.getFullYear(), d.getMonth() + 3 * dir, 1) : new Date(d.getFullYear() + dir, d.getMonth(), 1); UI.ref = isoD(n); saveUI(); renderDash(); };
   $('#fPrev').onclick = () => step(-1); $('#fNext').onclick = () => step(1); $('#fToday').onclick = () => { UI.ref = today(); saveUI(); renderDash(); };
   $('#fOrg').onchange = e => set('org', e.target.value);
   if ($('#fBr')) $('#fBr').onchange = e => set('br', e.target.value);
   $('#fInd').onchange = e => set('ind', e.target.value); $('#fJob').onchange = e => set('job', e.target.value); $('#fSite').onchange = e => set('site', e.target.value);
-  $('#fAdj').onclick = () => openAdjust();
+  $('#fAdj').onclick = () => openAdjust(); $('#fClient').onclick = () => openClientView();
+  $$('#p-dash [data-iss]').forEach(b => b.onclick = () => openIssue(b.dataset.iss)); if ($('#dIssGo')) $('#dIssGo').onclick = () => setTab('iss');
   $('#fPull').onclick = async () => { const n = await pullShare(V.A.range); if (n != null) { toast(`공유 서버 기록 ${n}건을 받았습니다`); renderAll(); } };
   $$('#p-dash [data-evsite]').forEach(b => b.onclick = () => { UI.F = Object.assign(curF(), { site: b.dataset.evsite }); saveUI(); renderDash(); });
 }
@@ -100,7 +105,7 @@ function trendData(A, per) {
   const r = A.range;
   if (per === 'y') { const lb = [], act = [], val = []; for (let m = 0; m < 12; m++) { const k = r.from.slice(0, 4) + '-' + pad(m + 1); lb.push((m + 1) + '월'); let a = 0, v = 0; Object.entries(A.days).forEach(([d, x]) => { if (d.startsWith(k)) { a += x.act; v += x.val; } }); act.push(a); val.push(v); } return { lb, act, val }; }
   if (per === 'd') { const ks = Object.keys(CATS); return { lb: ks.map(k => CATS[k].n), act: ks.map(k => A.cats[k].act), val: ks.map(k => A.cats[k].val) }; }
-  const lb = [], act = [], val = []; for (let d = parseD(r.from); d <= parseD(r.to); d = addDays(d, 1)) { const k = isoD(d), x = A.days[k]; lb.push(per === 'w' ? `${d.getMonth() + 1}/${d.getDate()}(${WKK[d.getDay()]})` : String(d.getDate())); act.push(x ? x.act : 0); val.push(x ? x.val : 0); } return { lb, act, val };
+  const lb = [], act = [], val = []; for (let d = parseD(r.from); d <= parseD(r.to); d = addDays(d, 1)) { const k = isoD(d), x = A.days[k]; lb.push(per === 'w' ? `${d.getMonth() + 1}/${d.getDate()}(${WKK[d.getDay()]})` : per === 'q' ? `${d.getMonth() + 1}/${d.getDate()}` : String(d.getDate())); act.push(x ? x.act : 0); val.push(x ? x.val : 0); } return { lb, act, val };
 }
 function drawCharts() {
   const A = V.A; if (!A || !$('#cTrend')) return;
@@ -183,10 +188,10 @@ function renderEntrySites() {
 }
 function renderEntryCal() {
   const E = V.entry, d = parseD(E.d) || kstNow(), y = d.getFullYear(), m = d.getMonth(), f = new Date(y, m, 1), n = new Date(y, m + 1, 0).getDate();
-  const has = new Set(Object.values(PM.recs).filter(x => x.site === E.site && x.d.startsWith(`${y}-${pad(m + 1)}`)).map(x => +x.d.slice(8)));
+  const mr = Object.values(PM.recs).filter(x => x.site === E.site && x.d.startsWith(`${y}-${pad(m + 1)}`)), has = new Set(mr.map(x => +x.d.slice(8))), okd = new Set(mr.filter(x => x.st).map(x => +x.d.slice(8)));
   let h = `<div class="cal">${WKK.map(w => `<b>${w}</b>`).join('')}`; for (let i = 0; i < f.getDay(); i++) h += '<button class="x" tabindex="-1"></button>';
-  for (let i = 1; i <= n; i++) h += `<button type="button" data-day="${i}" class="${has.has(i) ? 'has' : ''} ${i === d.getDate() ? 'on' : ''}">${i}</button>`;
-  $('#eCal').innerHTML = h + `</div><p class="hint">초록 날짜 = 직접 입력한 날 (${has.size}일 / ${n}일) · 나머지 지난 날은 ${autoCfg(E.site).on ? '자동 산출' : '기록 없음'}</p>`;
+  for (let i = 1; i <= n; i++) h += `<button type="button" data-day="${i}" class="${has.has(i) ? 'has' : ''} ${okd.has(i) ? 'okd' : ''} ${excOn(E.site, '', isoD(new Date(y, m, i))) ? 'exd' : ''} ${i === d.getDate() ? 'on' : ''}">${i}</button>`;
+  $('#eCal').innerHTML = h + `</div><p class="hint">초록 날짜 = 직접 입력한 날 (${has.size}일 / ${n}일, ✔ 관리자 확인 ${okd.size}일) · 주황 테두리 = 업무 영향 사유 · 나머지 지난 날은 ${autoCfg(E.site).on ? '자동 산출' : '기록 없음'}</p>`;
   $('#eCal').onclick = e => { const b = e.target.closest('[data-day]'); if (!b) return; E.d = isoD(new Date(y, m, +b.dataset.day)); $('#eD').value = E.d; renderEntrySites(); renderEntryCal(); renderEntryMain(); };
 }
 function autoPanelHtml(s, job) {
@@ -203,7 +208,7 @@ function renderEntryMain() {
   const saved = getRec(s.key, E.job, E.d), cf = autoCfg(s.key), future = E.d > today();
   const auto = !saved && cf.on && !future ? autoRec(s, E.job, E.d) : null;
   const r = saved || { q: auto ? Object.assign({}, auto.q) : {}, a: {}, ev: [], note: '', shift: '' };
-  E.cur = JSON.parse(JSON.stringify(r)); E.cur.q = E.cur.q || {}; E.cur.a = E.cur.a || {}; E.cur.ev = E.cur.ev || [];
+  E.cur = JSON.parse(JSON.stringify(r)); E.cur.q = E.cur.q || {}; E.cur.a = E.cur.a || {}; E.cur.ev = E.cur.ev || []; E.cur.ph = E.cur.ph || [];
   const tasks = tasksAll(E.job, s.ind), J = JOBS[E.job];
   let tg = '';
   Object.entries(CATS).forEach(([ck, c]) => {
@@ -222,16 +227,18 @@ function renderEntryMain() {
     ${autoPanelHtml(s, E.job)}
     <div class="stbar ${saved ? 'man' : auto ? 'aut' : ''}">${saved ? '✍ 직접 입력·저장한 기록입니다.' : auto ? `⚡ 자동 산출값(성과 수준 ${cf.lvl}%)이 채워져 있습니다 — 그대로 두면 자동으로 집계되고, 고친 뒤 「💾 저장」하면 실적으로 확정됩니다.` : future ? '앞으로의 날짜는 자동 산출하지 않습니다.' : '자동 입력이 꺼져 있습니다 — 직접 입력하세요.'}
       <span class="r">해당 업무 ${tasks.length - offN}/${tasks.length} · <button type="button" class="lnk" id="eAllOn">모두 해당</button></span></div>
+    ${entryEviHtml(s, E, saved)}
     <div class="grid"><label class="f">근무조·근무형태<input id="eShift" value="${esc(E.cur.shift || s.shift || '')}" placeholder="예: 주간 / A조 / 격일제"></label><label class="f">작성자<input id="eBy" value="${esc(E.cur.by || (UI.manager ? [UI.manager.title, UI.manager.name].filter(Boolean).join(' ') : ''))}"></label></div>
     ${tg}
     <div class="catbar" style="--c:#7A2E8E">📎 사건사고 · 주요 작업 · 업무개선 · 교육 · 우수사례 <small>보고서의 「첨부」와 「작업 전·후 사진」으로 들어갑니다</small></div>
     <div id="eEv"></div>
     <div class="row" style="margin-top:8px">${Object.entries(EVT).map(([k, v]) => `<button class="btn sm" type="button" data-addev="${k}">${v.ic} ${v.n} 추가</button>`).join('')}</div>
     <label class="f" style="margin-top:12px">특이사항·메모 (보고서 「기타」)<textarea id="eNote" rows="2">${esc(E.cur.note || '')}</textarea></label>
+    ${entryPhotoHtml(E)}
   </div></div>
   <div class="savebar"><span class="st" id="eSt">${saved ? '저장된 기록을 고치는 중' : auto ? '자동 산출값' : '새 기록'} · 합계 <b id="eSum">0</b> · 환산 <b id="eVal">0원</b></span>
     <button class="btn" id="eCopy">↺ 전날 기록 불러오기</button>${saved ? `<button class="btn warn" id="eDel">${cf.on ? '자동값으로 되돌리기' : '이 날 기록 지우기'}</button>` : ''}<button class="btn pri" id="eSave">💾 저장</button></div>`;
-  renderEntryEv(); entrySum();
+  renderEntryEv(); entrySum(); bindEntryEvi(s, E, saved);
   box.querySelector('.jobtabs').onclick = e => { const b = e.target.closest('[data-j]'); if (b) { E.job = b.dataset.j; renderEntryMain(); } };
   $('#eJobs').onclick = () => openSiteCfg(s.key); $('#aHeads').onclick = () => openSiteCfg(s.key);
   const setAuto = o => { PM.cfg[s.key] = Object.assign({}, PM.cfg[s.key], { auto: Object.assign({}, (PM.cfg[s.key] || {}).auto, o) }); savePM(); renderEntryMain(); renderEntryCal(); renderHeroStats(); };
@@ -270,7 +277,8 @@ function saveEntry() {
   const q = {}; Object.entries(E.cur.q).forEach(([k, v]) => { if (v !== '' && v != null && !isNaN(v) && +v !== 0 && !isOff(s.key, k)) q[k] = +v; });
   const a = {}; Object.entries(E.cur.a).forEach(([k, v]) => { if (v !== '' && v != null && +v) a[k] = +v; });
   if (!Object.keys(q).length && !E.cur.ev.length && !$('#eNote').value.trim()) return toast('입력한 실적이 없습니다');
-  putRec({ d: E.d, site: s.key, job: E.job, by: $('#eBy').value.trim(), shift: $('#eShift').value.trim(), q, a, ev: E.cur.ev, note: $('#eNote').value.trim() });
+  const old = getRec(s.key, E.job, E.d) || {};
+  putRec({ d: E.d, site: s.key, job: E.job, by: $('#eBy').value.trim(), shift: $('#eShift').value.trim(), q, a, ev: E.cur.ev, note: $('#eNote').value.trim(), ph: E.cur.ph || [], st: old.st || '', okBy: old.okBy || '', okAt: old.okAt || '', custBy: old.custBy || '', custAt: old.custAt || '' });
   toast(`저장했습니다 — ${s.name} ${fmtD(E.d)} ${JOBS[E.job].n}`); renderEntrySites(); renderEntryCal(); renderEntryMain(); renderHeroStats();
 }
 function openEvent(type) {
@@ -329,7 +337,7 @@ function renderQCSum(yr) {
   if (!L.length) { $('#qSum').innerHTML = '<div class="empty">이 해의 점검 결과가 없습니다.</div>'; return; }
   const band = x => x >= 90 ? 0 : x >= 80 ? 1 : x >= 70 ? 2 : 3, cnt = [0, 0, 0, 0]; L.forEach(x => cnt[band(x.sc.total)]++);
   const avg = k => { const v = L.map(x => x.sc.sec[k].w).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-  $('#qSum').innerHTML = `<div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:10px">${['90점 이상', '80점 이상', '70점 이상', '70점 미만'].map((n, i) => `<div class="kpi" style="--c:${GRADE[i][3]}"><small>${n}</small><b>${cnt[i]}</b><span>곳</span></div>`).join('')}</div>
+  $('#qSum').innerHTML = `<div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:10px">${['90점 이상', '80점 이상', '70점 이상', '70점 미만'].map((n, i) => `<div class="kpi" style="--c:${['#1B7A34', '#0B1F8A', '#E8750A', '#C0392B'][i]}"><small>${n}</small><b>${cnt[i]}</b><span>곳</span></div>`).join('')}</div>
     <div class="tblw" style="max-height:340px"><table class="t" style="min-width:560px"><thead><tr><th>순위</th><th style="text-align:left">사업장</th><th>일반관리<br><small>10%</small></th><th>위험관리<br><small>10%</small></th><th>업무환경<br><small>5%</small></th><th>현장품질<br><small>75%</small></th><th>평점</th></tr></thead><tbody>
     ${L.map((x, i) => `<tr><td class="c">${i + 1}</td><td>${esc(x.s.name)}</td>${['gen', 'risk', 'env', 'site'].map(k => `<td class="n">${x.sc.sec[k].excl ? '점검제외' : nf(x.sc.sec[k].w, 1)}</td>`).join('')}<td class="n"><b>${nf(x.sc.total, 1)}</b></td></tr>`).join('')}
     <tr class="tot"><td colspan="2">평균 · 총 ${L.length}개 SITE</td>${['gen', 'risk', 'env', 'site'].map(k => `<td class="n">${nf(avg(k), 1)}</td>`).join('')}<td class="n">${nf(L.reduce((a, x) => a + x.sc.total, 0) / L.length, 1)}</td></tr></tbody></table></div>
@@ -398,11 +406,16 @@ function renderReport() {
     <div class="rcard" style="--c:#0E7C86"><h3>🏛 전사 월간실적 및 계획 관리현황 (엑셀)</h3><p>「전사 미화현장 월간실적 및 계획 관리현황」 형식 — 조직(본부·지사)별 사업장 · 책임자 · 인원 · 보고(기록) 현황 · 업무량 · 예방 · 환산가치 · 달성률 · SPI · 등급.</p><div class="row"><button class="btn bx" data-out="orgxlsx">⬇ 관리현황 엑셀</button></div></div>
     <div class="rcard" style="--c:#1B7A34"><h3>🔍 운영실태·품질점검 결과</h3><p>2024.08.19 「전사 미화사업장 운영실태 및 품질점검 결과」 형식 — 목적 · 개요 · 사업유형별 분포 · 평점순(세부점수) · 후속조치. 사업장별 점검보고서는 「🔍 운영실태·품질점검」 탭에서.</p><div class="row"><button class="btn bw" data-out="qcdocx">⬇ 종합 Word</button><button class="btn bf" data-out="qcpdf">⬇ PDF</button><button class="btn bx" data-out="qcxlsx">⬇ 평점표</button></div></div>
     <div class="rcard" style="--c:#E8750A"><h3>✎ 출력 전 수량 조정</h3><p>자동 산출된 업무량을 보고서에 나갈 숫자로 바로 고칩니다 — 항목별 기간 합계를 고치면 자동 산출분이 그 비율로 다시 계산되어 모든 출력물(엑셀·Word·PPT·PDF)에 반영됩니다. 성과 수준(%)도 여기서 바꿉니다.</p><div class="row"><button class="btn" data-out="adjust" style="color:#fff;background:#E8750A;border:0">✎ 수량 조정</button></div></div>
+    <div class="rcard" style="--c:#0B1F8A"><h3>🤝 계약·재계약 지원 성과보고서</h3><p>기획안 7장 구성 — Ⅰ.운영 개요 · Ⅱ.업무 실적 · Ⅲ.주요 성과(위험요소 사전 발견·이상징후·환경 개선) · Ⅳ.서비스 품질(고객사 평가·민원·품질 변화) · Ⅴ.개선 및 향후 계획 · 통합 성과점수 산식 · 증빙 현황 · 재계약 협상 문구. 분기·연간 기간을 권장합니다.</p>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;margin:4px 0"><input type="checkbox" id="rMask" ${UI.mask ? 'checked' : ''}> 고객사 제출용(근무자 이름 가림 · 내부 정보 제외)</label>
+      <div class="row"><button class="btn bw" data-out="ctdocx">⬇ Word</button><button class="btn bf" data-out="ctpdf">⬇ PDF</button><button class="btn" data-out="client" style="color:var(--ink)">🏢 고객사 화면</button></div></div>
+    <div class="rcard" style="--c:#C0392B"><h3>🛠 개선·조치·민원 관리대장 (엑셀)</h3><p>기간 안에 접수된 위험요소·시설 이상·민원·고객사 요청·개선과제 — 위험도 · 담당 · 예정일 · 진행상태 · 처리일수 · 원인(내부/외부요인) · 미조치 목록 · 고객사 평가 시트.</p><div class="row"><button class="btn bx" data-out="issxlsx">⬇ 관리대장 엑셀</button></div></div>
     <div class="rcard" style="--c:#7A2E8E"><h3>⬇ 한 번에</h3><p>선택 범위의 엑셀 실적표 + Word 보고 + PPT 발표자료를 차례로 만듭니다(사업장이 많으면 시간이 걸립니다).</p><div class="row"><button class="btn pri" data-out="all" style="background:linear-gradient(100deg,#1B7A34,#0B1F8A)">⬇ 3종 일괄</button></div></div>
   </div>
   <p class="hint">대상 사업장 ${sites.length}곳 중 기록이 있는 ${A.siteN}곳으로 만듭니다. Word 보고서의 머리글·바닥글은 에스텍 표준(「The Best Choice」 로고 · 쪽번호 · 제작자 서명)입니다.</p>`;
   const sync = () => { UI.per = $('#rPer').value; UI.ref = $('#rRef').value || today(); UI.F = Object.assign(curF(), { org: $('#rOrg').value, job: $('#rJob').value, site: $('#rSite').value }); if (UI.F.org !== F.org) { UI.F.site = ''; UI.F.br = ''; } saveUI(); renderReport(); };
   ['rPer', 'rRef', 'rOrg', 'rJob', 'rSite'].forEach(id => $('#' + id).onchange = sync);
+  $('#rMask').onchange = e => { UI.mask = e.target.checked; saveUI(); };
   $$('#p-report [data-out]').forEach(b => b.onclick = () => runOut(b.dataset.out));
 }
 async function runOut(k) {
@@ -416,6 +429,10 @@ async function runOut(k) {
     if (k === 'pptx') return await outDeck(r, F, 'pptx');
     if (k === 'pptpdf') return await outDeck(r, F, 'pdf');
     if (k === 'orgxlsx') return await outOrgXlsx(r, F);
+    if (k === 'ctdocx') return await outContract(r, F, 'docx');
+    if (k === 'ctpdf') return await outContract(r, F, 'pdf');
+    if (k === 'client') return openClientView();
+    if (k === 'issxlsx') return await outIssXlsx(r, F);
     const ys = [...new Set(Object.values(PM.qc).map(q => q.d.slice(0, 4)))].filter(y => y <= r.from.slice(0, 4)).sort(); const yr = UI.qcYear && ys.includes(UI.qcYear) ? UI.qcYear : (ys.pop() || r.from.slice(0, 4));
     if (k === 'qcdocx') return await outQCSummary(yr, 'docx');
     if (k === 'qcpdf') return await outQCSummary(yr, 'pdf');
@@ -477,6 +494,8 @@ function renderSet() {
         <div class="row"><label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="adOn" ${autoDef().on ? 'checked' : ''}> 모든 사업장 기본 사용</label></div>
         <div class="row"><span style="font-size:13px">기본 성과 수준</span><input type="number" id="adLvl" min="1" max="100" value="${autoDef().lvl}" style="width:80px">%<span style="font-size:13px">시작일</span><input type="date" id="adFrom" value="${autoDef().from}" style="width:150px"></div>
         <div class="row"><button class="btn pri" id="adSave">저장</button><button class="btn" id="adBulk" title="성과 현황 필터 범위의 사업장 성과 수준을 한꺼번에">범위 사업장 수준 일괄 적용</button></div></div>
+      <div class="rcard" style="--c:#0B1F8A"><h3>🎯 통합 성과점수(KPI) 기준</h3><p>기획안 5장 — 업무 수행률 ${kpiW().rate} · 업무 품질 ${kpiW().quality} · 예방·개선 ${kpiW().prev} · 고객 만족 ${kpiW().csat} · 역량·교육 ${kpiW().edu} · 보고·관리 ${kpiW().mgmt}. 등급 S 95 · A 90 · B 80 · C 70 · D 70 미만. 계약별 가중치는 사업장 설정에서 따로 정합니다.</p><div class="row"><button class="btn pri" id="kW">✎ 기본 가중치</button></div></div>
+      <div class="rcard" style="--c:#C0392B"><h3>🩺 데이터 품질 점검</h3><p>중복·누락·비정상 기록을 찾아 보여 줍니다 — 계획의 3배를 넘는 수량, 미래 날짜 기록, 오래 방치된 미조치 건, 관리자 확인이 안 된 기록, 업무 영향 사유가 겹친 기간.</p><div class="row"><button class="btn" id="dChk">🩺 점검하기</button></div></div>
       <div class="rcard" style="--c:#1D6F42"><h3>📥 엑셀로 한꺼번에 입력</h3><p>현장에서 쓰던 엑셀 일지를 옮길 때 — 업종별 시트(일자 · 사업장명 · 업무 항목 열) 양식을 받아 채운 뒤 불러옵니다.</p><div class="row"><button class="btn" id="dTpl">⬇ 입력 양식</button><label class="btn pri" for="dImp">⬆ 불러오기</label><input type="file" id="dImp" accept=".xlsx" hidden></div></div>
       <div class="rcard" style="--c:#0E7C86"><h3>☁ 공유 서버</h3><p>로그인하면 기록이 회사 공유 서버(pm_records)에 저장되어 본사·지사가 함께 집계합니다. <span id="shareState2"></span></p><div class="row"><button class="btn" id="dPush">⬆ 이 기기 기록 모두 올리기</button><button class="btn" id="dPull">⬇ 올해 기록 받기</button></div></div>
       <div class="rcard" style="--c:#7A2E8E"><h3>💾 백업 · 복원</h3><p>모든 기록·점검·설정을 파일 하나(.json)로 저장하거나 되돌립니다. 이 기기 사용량 약 ${nf(storeBytes() / 1024 / 1024, 1)}MB.</p><div class="row"><button class="btn" id="dExp">⬇ 백업 파일</button><label class="btn" for="dRes">⬆ 복원</label><input type="file" id="dRes" accept=".json" hidden></div></div>
@@ -492,9 +511,10 @@ function renderSet() {
   $('#dPush').onclick = async () => { if (!sbClient()) return toast('먼저 로그인하세요'); busy(true, '공유 서버에 올리는 중…'); await pushAllShare(); busy(false); toast(SHARE.ok ? '올렸습니다' : '공유 서버가 준비되지 않았습니다(SQL 실행 필요)'); };
   $('#dPull').onclick = async () => { const y = kstNow().getFullYear(); const n = await pullShare({ from: y + '-01-01', to: y + '-12-31' }); toast(`받은 기록 ${n}건`); renderAll(); };
   $('#dExp').onclick = () => download(new Blob([JSON.stringify(PM)], { type: 'application/json' }), `에스텍_성과관리_백업_${today()}.json`);
-  $('#dRes').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (!o.recs) throw 0; if (!confirmBox('백업 파일로 바꿀까요? 지금 이 기기의 자료는 백업 내용으로 대체됩니다.')) return; PM = Object.assign({ recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {} }, o); savePM(); renderAll(); toast('복원했습니다'); } catch (x) { toast('백업 파일이 아닙니다'); } };
+  $('#dRes').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const o = JSON.parse(await f.text()); if (!o.recs) throw 0; if (!confirmBox('백업 파일로 바꿀까요? 지금 이 기기의 자료는 백업 내용으로 대체됩니다.')) return; PM = Object.assign({ recs: {}, qc: {}, cfg: {}, val: {}, usites: [], plans: {}, iss: {}, csat: {}, exc: {}, chk: {} }, o); savePM(); renderAll(); toast('복원했습니다'); } catch (x) { toast('백업 파일이 아닙니다'); } };
   $('#adSave').onclick = () => { PM.autoDef = { on: $('#adOn').checked, lvl: Math.max(1, Math.min(100, +$('#adLvl').value || 90)), from: $('#adFrom').value || autoDef().from }; savePM(); renderHeroStats(); toast('자동 성과 입력 기본값을 저장했습니다'); };
   $('#adBulk').onclick = () => { const lv = Math.max(1, Math.min(100, +$('#adLvl').value || 90)), list = sitesFiltered(curF()).filter(x => !curF().site || x.key === curF().site); if (!confirmBox(`성과 현황 범위(${scopeLabel(curF())}) 사업장 ${list.length}곳의 성과 수준을 ${lv}%로 바꿀까요?`)) return; list.forEach(x => { PM.cfg[x.key] = Object.assign({}, PM.cfg[x.key], { auto: Object.assign({}, (PM.cfg[x.key] || {}).auto, { lvl: lv, on: true }) }); }); savePM(); renderHeroStats(); toast(`${list.length}곳을 ${lv}%로 바꿨습니다`); };
+  $('#kW').onclick = () => openKpiW(); $('#dChk').onclick = () => openDataCheck();
   $('#dMan').onclick = () => openManual('user'); if ($('#dManA')) $('#dManA').onclick = () => openManual('admin');
   $('#dSeed').onclick = () => { busy(true, '예시 자료를 만드는 중…'); setTimeout(() => { const n = seedSample(); busy(false); renderAll(); toast(`예시 기록 ${nf(n)}건과 품질점검 예시(가상 사업장)를 넣었습니다`); }, 50); };
   $('#dClr').onclick = () => { if (!confirmBox('예시 자료만 지울까요? 직접 입력한 기록은 그대로 둡니다.')) return; clearSample(); renderAll(); toast('예시 자료를 지웠습니다'); };
@@ -511,15 +531,19 @@ function openSiteCfg(key) {
     <div class="field"><label>운영 업종 · 업종별 인원(명)</label><div class="chips">${Object.entries(JOBS).map(([k, v]) => `<span class="chip" style="display:inline-flex;gap:6px;align-items:center"><button type="button" class="chip g" data-cj="${k}" aria-pressed="${jobs.includes(k)}" style="border:0;padding:2px 6px">${v.ic} ${v.n}</button><input type="number" min="0" data-hc="${k}" value="${(c.heads || {})[k] ?? ''}" placeholder="${jobs.includes(k) ? siteHeads(s, k) : ''}" style="width:58px;padding:4px 6px">명</span>`).join('')}</div></div>
     <div class="grid2"><div class="field"><label>관리 면적(㎡, 미화 일상 청소 기준)</label><input type="number" id="cArea" value="${c.area || ''}" placeholder="비우면 인원 × 800㎡"></div>
     <div class="field"><label>자동 성과 입력 · 성과 수준</label><div class="row"><label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="cAuto" ${cf.on ? 'checked' : ''}> 사용</label><input type="number" id="cLvl" min="1" max="100" value="${cf.lvl}" style="width:80px">%</div></div></div>
+    <div class="field"><label>계약별 KPI 가중치(비우면 기본값 · 합계는 자동으로 100점 환산)</label><div class="chips">${Object.keys(SPI_W).map(k => `<span class="chip" style="display:inline-flex;gap:6px;align-items:center">${SPI_N[k][0]}<input type="number" min="0" max="100" data-kw="${k}" value="${(c.w || {})[k] ?? ''}" placeholder="${kpiW()[k]}" style="width:54px;padding:4px 6px"></span>`).join('')}</div></div>
+    <div class="row" style="margin-bottom:8px"><button class="btn sm" type="button" id="cExc">📅 업무 영향 사유(예외) ${((PM.exc || {})[key] || []).length}건</button><button class="btn sm" type="button" id="cQr">📍 QR 점검 포인트 ${(((PM.chk || {})[key] || {}).pts || []).length}곳</button></div>
     <div class="tblw" style="max-height:44vh"><table class="t" style="min-width:560px"><thead><tr><th>해당</th><th>업종</th><th style="text-align:left">업무 항목</th><th>단위</th><th>1일 계획</th><th>월 계획</th></tr></thead><tbody>${jobs.map(rows).join('')}</tbody></table></div>
     <p class="hint">「해당」을 끈 업무는 이 사업장 입력 화면에서 흐리게 바뀌고 자동 입력·집계·보고서에서 빠집니다. 「(직접)」 항목은 실제로 일어난 일만 직접 입력합니다.</p>
     <div class="mrow"><button class="btn" id="mClose">취소</button><button class="btn pri" id="cOk">저장</button></div>`, md => {
     md.querySelector('#mClose').onclick = closeModal;
     md.querySelectorAll('[data-cj]').forEach(b => b.onclick = () => b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')));
+    md.querySelector('#cExc').onclick = () => openExc(key); md.querySelector('#cQr').onclick = () => openQrPts(key);
     md.querySelector('#cOk').onclick = () => {
       const nc = Object.assign({}, c, { ind: md.querySelector('#cInd').value, shift: md.querySelector('#cShift').value.trim(), area: +md.querySelector('#cArea').value || 0, jobs: [...md.querySelectorAll('[data-cj][aria-pressed="true"]')].map(b => b.dataset.cj), plan: Object.assign({}, c.plan), planM: Object.assign({}, c.planM), heads: {}, off: Object.assign({}, c.off), auto: Object.assign({}, c.auto, { on: md.querySelector('#cAuto').checked, lvl: Math.max(1, Math.min(100, +md.querySelector('#cLvl').value || 90)) }) });
       if (!nc.jobs.length) return toast('업종을 하나 이상 고르세요');
       md.querySelectorAll('[data-hc]').forEach(i => { if (i.value !== '') nc.heads[i.dataset.hc] = +i.value; });
+      nc.w = {}; md.querySelectorAll('[data-kw]').forEach(i => { if (i.value !== '') nc.w[i.dataset.kw] = Math.max(0, +i.value); }); if (!Object.keys(nc.w).length) delete nc.w;
       md.querySelectorAll('[data-pd]').forEach(i => { if (i.value === '') delete nc.plan[i.dataset.pd]; else nc.plan[i.dataset.pd] = +i.value; });
       md.querySelectorAll('[data-pm]').forEach(i => { if (i.value === '') delete nc.planM[i.dataset.pm]; else nc.planM[i.dataset.pm] = +i.value; });
       md.querySelectorAll('[data-con]').forEach(i => { if (i.checked) delete nc.off[i.dataset.con]; else nc.off[i.dataset.con] = true; });
@@ -621,7 +645,7 @@ async function init() {
   $$('.tabs button').forEach(b => b.onclick = () => setTab(b.dataset.tab));
   $$('[data-go]').forEach(b => b.onclick = () => { setTab(b.dataset.go); $('.tabs').scrollIntoView({ behavior: 'smooth' }); });
   if (!UI.F || typeof UI.F !== 'object') UI.F = {};
-  applyTheme(UI.theme); renderHeader(); showGate(); initPlayer(); renderAll(); renderShareState();
+  applyTheme(UI.theme); renderHeader(); showGate(); initPlayer(); renderAll(); renderShareState(); handleChkScan();
   window.addEventListener('app-access', () => renderAll());
   window.addEventListener('resize', () => { clearTimeout(V.rt); V.rt = setTimeout(drawCharts, 200); });
   setInterval(() => { renderShareState(); if (SHARE.ok == null && sbClient()) flushShare(); }, 15000);

@@ -1,7 +1,7 @@
 {
-  "version": "1.1.2",
-  "date": "2026-11-22",
-  "note": "제작자 관리매뉴얼을 공개 파일에서 빼고 서버 비공개 보관함으로 — 제작자만 보기 · 내려받기 · 통합관리시스템 공통 상단 버튼",
-  "html": "releases/S-Tec-Performance-Management-System_v1.1.2.html",
-  "apk": "releases/S-Tec-Performance-Management-System_v1.1.2.apk"
+  "version": "1.2.0",
+  "date": "2026-11-25",
+  "note": "S-Tec PMS 기획안 반영 — 통합 성과점수 6영역(S~D) · 개선·조치·민원·고객사 평가 · 증빙 1~5단계(관리자·고객사 확인·변경 이력·사진·QR) · 업무 영향 사유 · 분기 · 사무관리 직군 · 고객사 화면 · 재계약 성과보고서",
+  "html": "releases/S-Tec-Performance-Management-System_v1.2.0.html",
+  "apk": "releases/S-Tec-Performance-Management-System_v1.2.0.apk"
 }
