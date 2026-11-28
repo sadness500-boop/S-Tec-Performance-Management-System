@@ -3726,8 +3726,8 @@ const APP = {
   name: 'S-Tec Performance Management System',
   ko: '에스텍 성과 관리 시스템',
   code: 'stpm',
-  version: 'v1.2.0',
-  build: '2026-11-20',
+  version: 'v1.2.1',
+  build: '2026-11-28',
   shareUrl: 'https://sadness500-boop.github.io/S-Tec-Performance-Management-System/',
   apkUrl: 'https://github.com/sadness500-boop/S-Tec-Performance-Management-System/releases/download/app-latest/stpm-latest.apk',
   repo: 'https://github.com/sadness500-boop/S-Tec-Performance-Management-System',
@@ -3960,9 +3960,20 @@ function siteOk(s, F) {
   if (F.org && s.org !== F.org) return false;
   if (F.br && s.br !== F.br) return false;
   if (F.ind && s.ind !== F.ind) return false;
-  const allow = window.APP_ACCESS && APP_ACCESS.branches && APP_ACCESS.branches.length ? APP_ACCESS.branches : null;
+  const A = window.APP_ACCESS;
+  if (A && A.scope) { if (!sitePermPM(s)) return false; return true; }   // v1.x 프로그램별 관리범위(서버 계산)
+  const allow = A && A.branches && A.branches.length ? A.branches : null;
   if (allow && s.org === 'best' && !allow.includes(s.br)) return false;
   return true;
+}
+/* 프로그램별 관리범위 — 통합관리 콘솔 「🔐 프로그램별 권한」(없으면 공통 관리범위). 사업장 → 회사·조직 번호(통합 조직표) */
+const PM_OU_MAP = { best: { '동부': 'O02', '서부': 'O06', '남부': 'O07', '중부': 'O08', '': 'O01' }, ace: 'G107', first: 'G118', safe: 'G125', am: 'G045', busan: 'G024' };
+function siteOuPM(s) { const m = PM_OU_MAP[s.org]; return typeof m === 'object' ? (m[s.br || ''] || m['']) : (m || ''); }
+function sitePermPM(s) {
+  const A = window.APP_ACCESS || {}, sc = A.scope; if (!sc) return 'edit';
+  if (sc.all) return sc.perm || 'edit';
+  if (!A.perm_map) return 'edit';
+  return A.perm_map[siteOuPM(s)] || null;
 }
 function recsIn(r, F) {
   const man = Object.values(PM.recs).filter(x => x.d >= r.from && x.d <= r.to && (!F.job || x.job === F.job) && siteOk(SITE[x.site], F));

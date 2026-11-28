@@ -1,7 +1,7 @@
 {
-  "version": "1.2.0",
-  "date": "2026-11-25",
-  "note": "S-Tec PMS 기획안 반영 — 통합 성과점수 6영역(S~D) · 개선·조치·민원·고객사 평가 · 증빙 1~5단계(관리자·고객사 확인·변경 이력·사진·QR) · 업무 영향 사유 · 분기 · 사무관리 직군 · 고객사 화면 · 재계약 성과보고서",
-  "html": "releases/S-Tec-Performance-Management-System_v1.2.0.html",
-  "apk": "releases/S-Tec-Performance-Management-System_v1.2.0.apk"
+  "version": "1.2.1",
+  "date": "2026-11-28",
+  "note": "관리범위 — 통합관리 콘솔에서 이 프로그램만 정한 범위(없으면 공통 관리범위) 적용: 범위 안 회사·조직의 사업장만 보임",
+  "html": "releases/S-Tec-Performance-Management-System_v1.2.1.html",
+  "apk": "releases/S-Tec-Performance-Management-System_v1.2.1.apk"
 }
